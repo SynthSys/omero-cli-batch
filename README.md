@@ -27,7 +27,7 @@ For the **Python 2** version, here are the instructions:
 
 ```shell script
 
-docker pull docker pull openmicroscopy/omero-server:5.4.10
+docker pull openmicroscopy/omero-server:5.4.10
 
 docker run -d --name postgres -e POSTGRES_PASSWORD=postgres postgres
 
