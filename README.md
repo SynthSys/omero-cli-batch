@@ -21,6 +21,8 @@ present in the file system. The best way to achieve this is by deploying
 the OMERO server Docker images (https://hub.docker.com/r/openmicroscopy/omero-server)
 and running them with the data directory mounted to the container.
 
+## Python 2 - python-omero 5.4.10
+
 For the **Python 2** version, here are the instructions:
 
 ```shell script
@@ -62,6 +64,8 @@ ln -s /opt/omero/server/OMERO.server-5.4.10-ice36-b105/lib/ /opt/omero/server/mi
 # run the uploader27 script
 /opt/omero/server/omero-cli-batch/src/omero_cli_batch/uploader27.py
 ```
+
+## Python 3 - omero-py 5.6.2
 
 For the **Python 3** version, here are the instructions:
 
