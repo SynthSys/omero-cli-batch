@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-    Setup file for arom_uploader.
+    Setup file for omero_cli_batch.
     Use setup.cfg to configure your project.
 
     This file was generated with PyScaffold 3.2.3.

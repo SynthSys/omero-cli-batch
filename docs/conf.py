@@ -35,7 +35,7 @@ except ImportError:
     from sphinx import apidoc
 
 output_dir = os.path.join(__location__, "api")
-module_dir = os.path.join(__location__, "../src/arom_uploader")
+module_dir = os.path.join(__location__, "../src/omero_cli_batch")
 try:
     shutil.rmtree(output_dir)
 except FileNotFoundError:
@@ -81,7 +81,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'arom_uploader'
+project = u'omero_cli_batch'
 copyright = u'2020, hayjohnny2000'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -216,7 +216,7 @@ html_static_path = ['_static']
 # html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'arom_uploader-doc'
+htmlhelp_basename = 'omero_cli_batch-doc'
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -235,7 +235,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', 'user_guide.tex', u'arom_uploader Documentation',
+  ('index', 'user_guide.tex', u'omero_cli_batch Documentation',
    u'hayjohnny2000', 'manual'),
 ]
 
