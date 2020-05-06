@@ -5,6 +5,9 @@ from tempfile import NamedTemporaryFile
 import re
 import sys
 import logging
+import random
+import csv
+import shutil
 from contextlib import contextmanager
 import getpass
 import omero
@@ -16,7 +19,8 @@ from omero.rtypes import rint, rlong, rstring, robject, unwrap
 #                         "andrewr_test_data")
 DATA_PATH = os.path.join("/var", "test_data")
 PERMITTED_FILE_EXTS = [".czi"]
-OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", "omero")
+#OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", "omero")
+OMERO_BIN_PATH = os.path.join("/home", "jovyan", "OMERO.server-5.4.10-ice36-b105", "bin", "omero")
 OMERO_SERVER = "publicomero.bio.ed.ac.uk"
 # OMERO_SERVER = "demo.openmicroscopy.org"
 # OMERO_SERVER = "127.0.0.1"
@@ -39,6 +43,10 @@ logging.basicConfig(
     format=fmtstr,
     datefmt=datestr,
 )
+
+CSV_STATUS_FILE_FIELDS = ["Directory", "Status"]
+CREATE_MARKER_FILE = False
+USE_CSV_LOG = True
 
 
 def fileno(file_or_fd):
@@ -98,6 +106,7 @@ def import_image(image_file, conn, dataset_id, session_key):
         args = [sys.executable]
         args.append(OMERO_BIN_PATH)
         args.extend(["-s", OMERO_SERVER, "-k", session_key, "-p", str(OMERO_PORT), "import"])
+        args.extend(["-g", OMERO_GROUP])
         # Import into current Dataset
         args.extend(["-d", str(dataset.id)])
         logging.debug(image_file)
@@ -121,8 +130,85 @@ def import_image(image_file, conn, dataset_id, session_key):
 
     except Exception as e:
         logging.error(e)
+        raise e
 
     return image_ids
+
+def check_subdir_status(subdir_path):
+    filename = 'status.csv'
+    upload_status = False
+
+    # check file exists, if not create it
+    if not os.path.exists(filename):
+        return upload_status
+
+    with open(filename, mode='r') as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter='|')
+        line_count = 0
+        for row in csv_reader:
+            if line_count == 0:
+                print "Column names are {}".format(row)
+                line_count += 1
+            else:
+                # print f'\t{row[0]} works in the {row[1]} department, and was born in {row[2]}.'
+                print "\t {} subdirectory has status {}".format(row[0], row[1])
+                line_count += 1
+
+                if row[0] == subdir_path:
+                    if row[1] == "SUCCESS":
+                        upload_status = True
+
+        print "Processed {} lines.".format(line_count)
+        csv_file.close()
+
+    return upload_status
+
+def update_subdir_status(subdir_path, status):
+    filename = 'status.csv'
+    print subdir_path
+
+    # check file exists, if not create it
+    if not os.path.exists(filename):
+        with open(filename, 'a+') as csv_file:
+            csv_writer = csv.DictWriter(csv_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS)
+            csv_writer.writeheader()
+            csv_file.close()
+            print "written header"
+
+    temp_file = NamedTemporaryFile(mode='a', delete=False)
+    shutil.copy(filename, temp_file.name)
+    updated_status = False
+
+    with open(filename, mode='rb') as csv_file, temp_file:
+        csv_reader = csv.DictReader(csv_file, delimiter='|')
+        csv_writer = csv.DictWriter(temp_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS)
+        line_count = 0
+
+        h0 = str(CSV_STATUS_FILE_FIELDS[0])
+        h1 = str(CSV_STATUS_FILE_FIELDS[1])
+
+        for row in csv_reader:
+            line_count += 1
+            if row[h0] == str(subdir_path):
+                print('updating status row', row[h0])
+                row[h1] = status
+
+                row = {h0: row[h0],
+                       h1: row[h1]}
+                csv_writer.writerow(row)
+                updated_status = True
+            print "Updated {} lines.".format(line_count)
+
+        if updated_status == False:
+            print "adding status row {}".format(subdir_path)
+            row = {h0: subdir_path,
+                   h1: status}
+            csv_writer.writerow(row)
+
+        csv_file.close()
+        temp_file.close()
+
+    shutil.move(temp_file.name, filename)
 
 def do_upload():
 
@@ -141,6 +227,12 @@ def do_upload():
                 cur_subdir = subdir
                 # it's a new subdirectory, therefore new dataset
                 dataset_id, full_dataset_name = None, None
+
+                # Check if the current sub directory has already been successfully uploaded
+                upload_status = check_subdir_status(cur_subdir)
+
+                if upload_status == True:
+                    continue
 
             for file in files:
                 if file.endswith(tuple(PERMITTED_FILE_EXTS)):
@@ -187,7 +279,10 @@ def do_upload():
                         if filepath:
                             #cli.onecmd(["import", filepath, '-T', target_dataset, "-g", OMERO_GROUP,
                             #            '--description', image_desc, '--no-upgrade-check'])
-                            image_ids = import_image(filepath, remote_conn, dataset_id, c.getSessionId())
+                            try:
+                                image_ids = import_image(filepath, remote_conn, dataset_id, c.getSessionId())
+                            except Exception as e:
+                                print cur_subdir
                             logging.debug(image_ids)
 
                             if image_ids is not None:
@@ -198,6 +293,34 @@ def do_upload():
 
                                     if remote_img is not None:
                                         logging.debug(remote_img.getId())
+
+                                if CREATE_MARKER_FILE == True:
+                                    try:
+                                        # write out SUCCESS marker file to indicate upload completed
+                                        status_file_path = os.path.join(subdir, "SUCCESS")
+                                        open(status_file_path, 'a').close()
+                                    except Exception as e:
+                                        logging.exception("Error")
+
+                                if USE_CSV_LOG == True:
+                                    update_subdir_status(cur_subdir, "SUCCESS")
+                            else:
+                                if CREATE_MARKER_FILE == True:
+                                    try:
+                                        # remove SUCCESS marker file if it exists
+                                        status_file_path = os.path.join(subdir, "SUCCESS")
+
+                                        if os.path.isfile(status_file_path):
+                                            os.remove(status_file_path)
+
+                                        # write out FAILURE marker file to indicate this sub dir needs uploaded again
+                                        status_file_path = os.path.join(subdir, "FAILED")
+                                        open(status_file_path, 'a').close()
+                                    except Exception as e:
+                                        logging.exception("Error")
+
+                                if USE_CSV_LOG == True:
+                                    update_subdir_status(cur_subdir, "FAILED")
 
     except Exception as e:
         logging.exception("Error")
