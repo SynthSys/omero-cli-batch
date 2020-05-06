@@ -14,6 +14,7 @@ import omero
 import omero.cli
 from omero.gateway import BlitzGateway
 from omero.rtypes import rint, rlong, rstring, robject, unwrap
+import backoff
 
 #DATA_PATH = os.path.join("D:\\", "Users", "Chickens", "Documents", "EPCC", "code_projects", \
 #                         "andrewr_test_data")
@@ -94,6 +95,10 @@ def close_remote_connection(c, cli, remote_conn):
     c.closeSession()
     cli.close()
 
+@backoff.on_exception(backoff.expo,
+                      (Exception),
+                      max_time=180,
+                      max_tries=8)
 def import_image(image_file, conn, dataset_id, session_key):
     image_ids = []
 
@@ -129,6 +134,9 @@ def import_image(image_file, conn, dataset_id, session_key):
                 image_ids.append(long(x.replace('Image:', '')))
 
     except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print exc_type, fname, exc_tb.tb_lineno
         logging.error(e)
         raise e
 
