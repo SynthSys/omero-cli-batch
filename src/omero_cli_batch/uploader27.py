@@ -1,4 +1,5 @@
 import subprocess
+import traceback
 from subprocess import call
 import os
 from tempfile import NamedTemporaryFile
@@ -20,7 +21,7 @@ import backoff
 #                         "andrewr_test_data")
 DATA_PATH = os.path.join("/var", "test_data")
 PERMITTED_FILE_EXTS = [".czi"]
-#OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", "omero")
+# OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", "omero")
 OMERO_BIN_PATH = os.path.join("/home", "jovyan", "OMERO.server-5.4.10-ice36-b105", "bin", "omero")
 OMERO_SERVER = "publicomero.bio.ed.ac.uk"
 # OMERO_SERVER = "demo.openmicroscopy.org"
@@ -95,10 +96,12 @@ def close_remote_connection(c, cli, remote_conn):
     c.closeSession()
     cli.close()
 
+'''
 @backoff.on_exception(backoff.expo,
                       (Exception),
                       max_time=180,
                       max_tries=8)
+                      '''
 def import_image(image_file, conn, dataset_id, session_key):
     image_ids = []
 
@@ -122,10 +125,12 @@ def import_image(image_file, conn, dataset_id, session_key):
 
         popen = subprocess.Popen(args,
                                  stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+                                 stderr=subprocess.PIPE,
+                                 universal_newlines=True) # output as string
         out, err = popen.communicate()
-        print 'out', out
-        print 'err', err
+        #print "out", out
+        #print "err", err
+
         rc = popen.wait()
         if rc != 0:
             raise Exception("import failed: [%r] %s\n%s" % (args, rc, err))
@@ -218,6 +223,44 @@ def update_subdir_status(subdir_path, status):
 
     shutil.move(temp_file.name, filename)
 
+def update_status(subdir, image_ids, remote_conn):
+    if image_ids is not None:
+        for uploaded_image_id in image_ids:
+            logging.info(":".join(["uploaded image ", str(uploaded_image_id)]))
+
+            remote_img = remote_conn.getObject("Image", rlong(uploaded_image_id))
+
+            if remote_img is not None:
+                logging.debug(remote_img.getId())
+
+        if CREATE_MARKER_FILE == True:
+            try:
+                # write out SUCCESS marker file to indicate upload completed
+                status_file_path = os.path.join(subdir, "SUCCESS")
+                open(status_file_path, 'a').close()
+            except Exception as e:
+                logging.exception("Error")
+
+        if USE_CSV_LOG == True:
+            update_subdir_status(subdir, "SUCCESS")
+    else:
+        if CREATE_MARKER_FILE == True:
+            try:
+                # remove SUCCESS marker file if it exists
+                status_file_path = os.path.join(subdir, "SUCCESS")
+
+                if os.path.isfile(status_file_path):
+                    os.remove(status_file_path)
+
+                # write out FAILURE marker file to indicate this sub dir needs uploaded again
+                status_file_path = os.path.join(subdir, "FAILED")
+                open(status_file_path, 'a').close()
+            except Exception as e:
+                logging.exception("Error")
+
+        if USE_CSV_LOG == True:
+            update_subdir_status(subdir, "FAILED")
+
 def do_upload():
 
     call(["ls", "-l", DATA_PATH])
@@ -293,42 +336,7 @@ def do_upload():
                                 print cur_subdir
                             logging.debug(image_ids)
 
-                            if image_ids is not None:
-                                for uploaded_image_id in image_ids:
-                                    logging.info(":".join(["uploaded image ", str(uploaded_image_id)]))
-
-                                    remote_img = remote_conn.getObject("Image", rlong(uploaded_image_id))
-
-                                    if remote_img is not None:
-                                        logging.debug(remote_img.getId())
-
-                                if CREATE_MARKER_FILE == True:
-                                    try:
-                                        # write out SUCCESS marker file to indicate upload completed
-                                        status_file_path = os.path.join(subdir, "SUCCESS")
-                                        open(status_file_path, 'a').close()
-                                    except Exception as e:
-                                        logging.exception("Error")
-
-                                if USE_CSV_LOG == True:
-                                    update_subdir_status(cur_subdir, "SUCCESS")
-                            else:
-                                if CREATE_MARKER_FILE == True:
-                                    try:
-                                        # remove SUCCESS marker file if it exists
-                                        status_file_path = os.path.join(subdir, "SUCCESS")
-
-                                        if os.path.isfile(status_file_path):
-                                            os.remove(status_file_path)
-
-                                        # write out FAILURE marker file to indicate this sub dir needs uploaded again
-                                        status_file_path = os.path.join(subdir, "FAILED")
-                                        open(status_file_path, 'a').close()
-                                    except Exception as e:
-                                        logging.exception("Error")
-
-                                if USE_CSV_LOG == True:
-                                    update_subdir_status(cur_subdir, "FAILED")
+                            update_status(cur_subdir, image_ids, remote_conn)
 
     except Exception as e:
         logging.exception("Error")
