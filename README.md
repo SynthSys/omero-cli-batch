@@ -43,7 +43,7 @@ docker run -d --name omero-server_5.4.10 --link postgres:db
 
 # need to install the OMERO libraries on the 5.4.10 server
 docker exec -uroot -it omero-server_5.4.10 /bin/bash
-yum install libssl1.0-devel
+yum install -y openssl-devel
 ln -s /usr/lib64/libssl.so.1.0.2k /usr/lib64/libssl.so.1.0.0
 ln -s /usr/lib64/libcrypto.so.1.0.2k /usr/lib64/libcrypto.so.1.0.0
 exit
@@ -70,11 +70,11 @@ ln -s /opt/omero/server/OMERO.server-5.4.10-ice36-b105/lib/ /opt/omero/server/mi
 For the **Python 3** version, here are the instructions:
 
 ```shell script
-docker pull docker pull openmicroscopy/omero-server:5.6.2
+docker pull docker pull openmicroscopy/omero-server:5.6.1
 
 docker run -d --name postgres -e POSTGRES_PASSWORD=postgres postgres
 
-docker run -d --name omero-server_5.6.2 --link postgres:db
+docker run -d --name omero-server_5.6.1 --link postgres:db
     -e CONFIG_omero_db_user=postgres \
     -e CONFIG_omero_db_pass=postgres \
     -e CONFIG_omero_db_name=postgres \
@@ -82,9 +82,9 @@ docker run -d --name omero-server_5.6.2 --link postgres:db
     -p 4063:4063 -p 4064:4064 \
     -v '/home/user/omero_data:/var/test_data:ro'
     -v '/home/user/code/omero-cli-batch:/opt/omero/server/omero-cli-batch:ro'
-    openmicroscopy/omero-server:5.6.2
+    openmicroscopy/omero-server:5.6.1
 
-docker exec -it omero-server_5.6.2 /bin/bash
+docker exec -it omero-server_5.6.1 /bin/bash
 source /opt/omero/server/venv3/bin/activate
 
 # run the uploader script
