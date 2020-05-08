@@ -16,10 +16,11 @@ from omero.rtypes import rlong
 import logging
 import backoff
 
-#DATA_PATH = os.path.join("D:\\", "Users", "Chickens", "Documents", "EPCC", "code_projects", \
+# DATA_PATH = os.path.join("D:\\", "Users", "Chickens", "Documents", "EPCC", "code_projects", \
 #                         "andrewr_test_data")
 DATA_PATH = os.path.join("/var", "test_data")
-PERMITTED_FILE_EXTS = [".czi"]
+# DATA_PATH = os.path.join("/opt", "omero", "server")
+PERMITTED_FILE_EXTS = [".czi", ".png"]
 OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", "omero")
 # OMERO_SERVER = "publicomero.bio.ed.ac.uk"
 OMERO_SERVER = "demo.openmicroscopy.org"
@@ -128,8 +129,10 @@ def import_image(image_file, conn, dataset_id, session_key):
 
         popen = subprocess.Popen(args,
                                  stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+                                 stderr=subprocess.PIPE,
+                                 universal_newlines=True) # output as string
         out, err = popen.communicate()
+
         #print "out", out
         #print "err", err
 
@@ -158,23 +161,22 @@ def check_subdir_status(subdir_path):
     if not os.path.exists(filename):
         return upload_status
 
-    with open(filename, mode='r') as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter='|')
+    with open(filename, mode='r', newline="", encoding='utf8') as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter='|', lineterminator="\n")
         line_count = 0
         for row in csv_reader:
             if line_count == 0:
-                print("Column names are {}".format(row))
+                logging.debug("Column names are {}".format(row))
                 line_count += 1
             else:
-                # print f'\t{row[0]} works in the {row[1]} department, and was born in {row[2]}.'
-                print("\t {} subdirectory has status {}".format(row[0], row[1]))
+                logging.debug("\t {} subdirectory has status {}".format(row[0], row[1]))
                 line_count += 1
 
                 if row[0] == subdir_path:
                     if row[1] == "SUCCESS":
                         upload_status = True
 
-        print("Processed {} lines.".format(line_count))
+        logging.debug("Processed {} lines.".format(line_count))
         csv_file.close()
 
     return upload_status
@@ -186,19 +188,19 @@ def update_subdir_status(subdir_path, status):
 
     # check file exists, if not create it
     if not os.path.exists(filename):
-        with open(filename, 'a+') as csv_file:
-            csv_writer = csv.DictWriter(csv_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS)
+        with open(filename, 'w', newline="", encoding='utf8') as csv_file:
+            csv_writer = csv.DictWriter(csv_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
             csv_writer.writeheader()
             csv_file.close()
-            print("written header")
+            logging.debug("written status CSV header")
 
-    temp_file = NamedTemporaryFile(mode='a', delete=False)
+    temp_file = NamedTemporaryFile(mode='w', delete=False)
     shutil.copy(filename, temp_file.name)
     updated_status = False
 
-    with open(filename, mode='r') as csv_file, temp_file:
-        csv_reader = csv.DictReader(csv_file, delimiter='|')
-        csv_writer = csv.DictWriter(temp_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS)
+    with open(filename, mode='r', newline="", encoding='utf8') as csv_file, temp_file:
+        csv_reader = csv.DictReader(csv_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
+        csv_writer = csv.DictWriter(temp_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
         line_count = 0
 
         h0 = str(CSV_STATUS_FILE_FIELDS[0])
@@ -206,18 +208,21 @@ def update_subdir_status(subdir_path, status):
 
         for row in csv_reader:
             line_count += 1
+            logging.debug("##################")
+            logging.debug("Row: {}".format(row[h0]))
+            logging.debug("Subdir: {}".format(subdir_path))
+            logging.debug("##################")
             if row[h0] == str(subdir_path):
-                print('updating status row', row[h0])
+                logging.debug("updating status row {}".format(row[h0]))
                 row[h1] = status
-
-                row = {h0: row[h0],
-                       h1: row[h1]}
-                csv_writer.writerow(row)
                 updated_status = True
-            print("Updated {} lines.".format(line_count))
+                logging.debug("Updated line # {}".format(line_count))
+
+            # write the row out to the temp file
+            csv_writer.writerow(row)
 
         if updated_status == False:
-            print("adding status row {}".format(subdir_path))
+            logging.debug("adding status row {}".format(subdir_path))
             row = {h0: subdir_path,
                    h1: status}
             csv_writer.writerow(row)
