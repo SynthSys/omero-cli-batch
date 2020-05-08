@@ -292,17 +292,27 @@ def do_upload():
             if upload_status == True:
                 continue
 
+            i = 0
+
         for file in files:
             if file.endswith(tuple(PERMITTED_FILE_EXTS)):
-                print(file)
+                i = i + 1
+                print file
                 filepath = os.path.join(subdir, file)
-                print(filepath)
+                print filepath
                 path_parts = subdir.split(os.sep)
-                print(len(path_parts))
-                print(path_parts[0])
+                print len(path_parts)
+                print path_parts[0]
 
                 path_parts_len = len(path_parts)
                 strain = path_parts[path_parts_len-1]
+
+                orig_file_name = r'' + str(os.path.join(cur_subdir, str(file)))
+                logging.debug(orig_file_name)
+                dest_file_name = r'' + str(os.path.join(cur_subdir, strain)) + '_' + str(i) + '.czi'
+                logging.debug(dest_file_name)
+                os.rename(orig_file_name, dest_file_name)
+
                 dataset_name = path_parts[path_parts_len-2]
                 figure = path_parts[path_parts_len-3]
 
