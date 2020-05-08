@@ -14,12 +14,13 @@ import getpass
 import omero
 import omero.cli
 from omero.gateway import BlitzGateway
-from omero.rtypes import rint, rlong, rstring, robject, unwrap
+from omero.rtypes import rlong
 import backoff
 
-#DATA_PATH = os.path.join("D:\\", "Users", "Chickens", "Documents", "EPCC", "code_projects", \
+# DATA_PATH = os.path.join("D:\\", "Users", "Chickens", "Documents", "EPCC", "code_projects", \
 #                         "andrewr_test_data")
 DATA_PATH = os.path.join("/var", "test_data")
+# DATA_PATH = os.path.join("/opt", "omero", "server")
 PERMITTED_FILE_EXTS = [".czi"]
 # OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", "omero")
 OMERO_BIN_PATH = os.path.join("/home", "jovyan", "OMERO.server-5.4.10-ice36-b105", "bin", "omero")
@@ -32,6 +33,7 @@ OMERO_USER = "jhay1"
 OMERO_PASSWORD = getpass.getpass()
 OMERO_GROUP = "rdm_scrapbook"
 # OMERO_GROUP = "default"
+OMERO_GROUP = "2019-02"
 OMERO_PORT = 4064
 
 # logging config
@@ -57,6 +59,7 @@ def fileno(file_or_fd):
         raise ValueError("Expected a file (`.fileno()`) or a file descriptor")
     return fd
 
+
 @contextmanager
 def stdout_redirected(to=os.devnull, stdout=None):
     if stdout is None:
@@ -80,6 +83,7 @@ def stdout_redirected(to=os.devnull, stdout=None):
             stdout.flush()
             os.dup2(copied.fileno(), stdout_fd)  # $ exec >&copied
 
+
 def connect_to_remote(password, username):
     c = omero.client(host=OMERO_SERVER, port=OMERO_PORT,
                      args=["--Ice.Config=/dev/null", "--omero.debug=1"])
@@ -91,17 +95,17 @@ def connect_to_remote(password, username):
     # del os.environ["ICE_CONFIG"]
     return c, cli, remote_conn
 
+
 def close_remote_connection(c, cli, remote_conn):
     remote_conn.close()
     c.closeSession()
     cli.close()
 
-'''
+
 @backoff.on_exception(backoff.expo,
                       (Exception),
-                      max_time=180,
-                      max_tries=8)
-                      '''
+                      max_time=90,
+                      max_tries=4)
 def import_image(image_file, conn, dataset_id, session_key):
     image_ids = []
 
@@ -119,6 +123,7 @@ def import_image(image_file, conn, dataset_id, session_key):
         args.extend(["-d", str(dataset.id)])
         logging.debug(image_file)
         args.append(image_file)
+        args.append("--no-upgrade-check")
         # args.append(pipes.quote(image_file))
         # args.append(image_file.replace(" ", "\ "))
         #args.append("\"".join(["",os.path.abspath(image_file),""]))
@@ -128,6 +133,7 @@ def import_image(image_file, conn, dataset_id, session_key):
                                  stderr=subprocess.PIPE,
                                  universal_newlines=True) # output as string
         out, err = popen.communicate()
+
         #print "out", out
         #print "err", err
 
@@ -147,6 +153,7 @@ def import_image(image_file, conn, dataset_id, session_key):
 
     return image_ids
 
+
 def check_subdir_status(subdir_path):
     filename = 'status.csv'
     upload_status = False
@@ -155,46 +162,45 @@ def check_subdir_status(subdir_path):
     if not os.path.exists(filename):
         return upload_status
 
-    with open(filename, mode='r') as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter='|')
+    with open(filename, mode='r', newline="", encoding='utf8') as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter='|', lineterminator="\n")
         line_count = 0
         for row in csv_reader:
             if line_count == 0:
-                print "Column names are {}".format(row)
+                logging.debug("Column names are {}".format(row))
                 line_count += 1
             else:
-                # print f'\t{row[0]} works in the {row[1]} department, and was born in {row[2]}.'
-                print "\t {} subdirectory has status {}".format(row[0], row[1])
+                logging.debug("\t {} subdirectory has status {}".format(row[0], row[1]))
                 line_count += 1
 
                 if row[0] == subdir_path:
                     if row[1] == "SUCCESS":
                         upload_status = True
 
-        print "Processed {} lines.".format(line_count)
+        logging.debug("Processed {} lines.".format(line_count))
         csv_file.close()
 
     return upload_status
 
+
 def update_subdir_status(subdir_path, status):
     filename = 'status.csv'
-    print subdir_path
 
     # check file exists, if not create it
     if not os.path.exists(filename):
-        with open(filename, 'a+') as csv_file:
-            csv_writer = csv.DictWriter(csv_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS)
+        with open(filename, 'w', newline="", encoding='utf8') as csv_file:
+            csv_writer = csv.DictWriter(csv_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
             csv_writer.writeheader()
             csv_file.close()
-            print "written header"
+            logging.debug("written status CSV header")
 
-    temp_file = NamedTemporaryFile(mode='a', delete=False)
+    temp_file = NamedTemporaryFile(mode='w', delete=False)
     shutil.copy(filename, temp_file.name)
     updated_status = False
 
-    with open(filename, mode='rb') as csv_file, temp_file:
-        csv_reader = csv.DictReader(csv_file, delimiter='|')
-        csv_writer = csv.DictWriter(temp_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS)
+    with open(filename, mode='r', newline="", encoding='utf8') as csv_file, temp_file:
+        csv_reader = csv.DictReader(csv_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
+        csv_writer = csv.DictWriter(temp_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
         line_count = 0
 
         h0 = str(CSV_STATUS_FILE_FIELDS[0])
@@ -202,18 +208,21 @@ def update_subdir_status(subdir_path, status):
 
         for row in csv_reader:
             line_count += 1
+            logging.debug("##################")
+            logging.debug("Row: {}".format(row[h0]))
+            logging.debug("Subdir: {}".format(subdir_path))
+            logging.debug("##################")
             if row[h0] == str(subdir_path):
-                print('updating status row', row[h0])
+                logging.debug("updating status row {}".format(row[h0]))
                 row[h1] = status
-
-                row = {h0: row[h0],
-                       h1: row[h1]}
-                csv_writer.writerow(row)
                 updated_status = True
-            print "Updated {} lines.".format(line_count)
+                logging.debug("Updated line # {}".format(line_count))
+
+            # write the row out to the temp file
+            csv_writer.writerow(row)
 
         if updated_status == False:
-            print "adding status row {}".format(subdir_path)
+            logging.debug("adding status row {}".format(subdir_path))
             row = {h0: subdir_path,
                    h1: status}
             csv_writer.writerow(row)
@@ -222,6 +231,7 @@ def update_subdir_status(subdir_path, status):
         temp_file.close()
 
     shutil.move(temp_file.name, filename)
+
 
 def update_status(subdir, image_ids, remote_conn):
     if image_ids is not None:
@@ -261,6 +271,7 @@ def update_status(subdir, image_ids, remote_conn):
         if USE_CSV_LOG == True:
             update_subdir_status(subdir, "FAILED")
 
+
 def do_upload():
 
     call(["ls", "-l", DATA_PATH])
@@ -268,35 +279,42 @@ def do_upload():
     dataset_id, full_dataset_name = None, None
     cur_subdir = None
 
-    try:
-        # Connect to remote omero
-        c, cli, remote_conn = connect_to_remote(OMERO_PASSWORD, OMERO_USER)
+    for subdir, dirs, files in os.walk(DATA_PATH):
 
-        for subdir, dirs, files in os.walk(DATA_PATH):
+        if subdir != cur_subdir:
+            cur_subdir = subdir
+            # it's a new subdirectory, therefore new dataset
+            dataset_id, full_dataset_name = None, None
 
-            if subdir != cur_subdir:
-                cur_subdir = subdir
-                # it's a new subdirectory, therefore new dataset
-                dataset_id, full_dataset_name = None, None
+            # Check if the current sub directory has already been successfully uploaded
+            upload_status = check_subdir_status(cur_subdir)
 
-                # Check if the current sub directory has already been successfully uploaded
-                upload_status = check_subdir_status(cur_subdir)
+            if upload_status == True:
+                continue
 
-                if upload_status == True:
-                    continue
+        for file in files:
+            if file.endswith(tuple(PERMITTED_FILE_EXTS)):
+                print(file)
+                filepath = os.path.join(subdir, file)
+                print(filepath)
+                path_parts = subdir.split(os.sep)
+                print(len(path_parts))
+                print(path_parts[0])
 
-            for file in files:
-                if file.endswith(tuple(PERMITTED_FILE_EXTS)):
-                    if dataset_id is None:
+                path_parts_len = len(path_parts)
+                strain = path_parts[path_parts_len-1]
+                dataset_name = path_parts[path_parts_len-2]
+                figure = path_parts[path_parts_len-3]
+
+                full_dataset_name = "_".join([figure, dataset_name, strain]).replace(" ", "")
+                print full_dataset_name
+
+                if dataset_id is None:
+                    try:
+                        # Connect to remote omero
+                        c, cli, remote_conn = connect_to_remote(OMERO_PASSWORD, OMERO_USER)
+
                         dataset_desc = "A dataset"
-
-                        path_parts = subdir.split(os.sep)
-
-                        path_parts_len = len(path_parts)
-                        strain = path_parts[path_parts_len - 1]
-                        dataset_name = path_parts[path_parts_len - 2]
-                        figure = path_parts[path_parts_len - 3]
-
                         full_dataset_name = "_".join([figure, dataset_name, strain]).replace(" ", "")
                         logging.debug(full_dataset_name)
 
@@ -315,13 +333,19 @@ def do_upload():
                         logging.info(":".join(["uploaded dataset ", dataset_id]))
                         remote_ds = remote_conn.getObject("Dataset", rlong(dataset_id))
                         logging.debug(remote_ds.getId())
+                    finally:
+                        close_remote_connection(c, cli, remote_conn)
 
                     logging.debug(file)
                     filepath = os.path.join(subdir, file)
                     logging.debug(filepath)
 
-                    if dataset_id is not None:
-                        image_ids = None
+                if dataset_id is not None:
+                    image_ids = None
+                    try:
+                        # Connect to remote omero
+                        c, cli, remote_conn = connect_to_remote(OMERO_PASSWORD, OMERO_USER)
+
                         # This temp_file is a work around to get hold of the id of uploaded
                         # images from stdout.
                         image_desc = "an image"
@@ -337,15 +361,16 @@ def do_upload():
                             logging.debug(image_ids)
 
                             update_status(cur_subdir, image_ids, remote_conn)
+                    except Exception as e:
+                        print(e)
+                    finally:
+                        close_remote_connection(c, cli, remote_conn)
 
-    except Exception as e:
-        logging.exception("Error")
-    finally:
-        close_remote_connection(c, cli, remote_conn)
 
 def main():
-    logging.debug("hello world!")
+    print "hello world!"
     do_upload()
+
 
 if __name__ == "__main__":
     main()

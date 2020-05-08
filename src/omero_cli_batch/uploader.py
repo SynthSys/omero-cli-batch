@@ -5,6 +5,8 @@ import os
 from tempfile import NamedTemporaryFile
 import re
 import sys
+import logging
+import random
 import csv
 import shutil
 from contextlib import contextmanager
@@ -13,19 +15,21 @@ import omero
 import omero.cli
 from omero.gateway import BlitzGateway
 from omero.rtypes import rlong
-import logging
 import backoff
 
 # DATA_PATH = os.path.join("D:\\", "Users", "Chickens", "Documents", "EPCC", "code_projects", \
 #                         "andrewr_test_data")
 DATA_PATH = os.path.join("/var", "test_data")
 # DATA_PATH = os.path.join("/opt", "omero", "server")
-PERMITTED_FILE_EXTS = [".czi", ".png"]
+PERMITTED_FILE_EXTS = [".czi"]
 OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", "omero")
+# OMERO_BIN_PATH = os.path.join("/home", "jovyan", "OMERO.server-5.4.10-ice36-b105", "bin", "omero")
 # OMERO_SERVER = "publicomero.bio.ed.ac.uk"
 OMERO_SERVER = "demo.openmicroscopy.org"
+# OMERO_SERVER = "127.0.0.1"
 # OMERO_USER = "jhay1"
 OMERO_USER = "jhay"
+# OMERO_USER = "root"
 OMERO_PASSWORD = getpass.getpass()
 # OMERO_GROUP = "rdm_scrapbook"
 # OMERO_GROUP = "default"
@@ -98,13 +102,10 @@ def close_remote_connection(c, cli, remote_conn):
     cli.close()
 
 
-'''
 @backoff.on_exception(backoff.expo,
                       (Exception),
-                      max_time=180,
-                      max_tries=8)
-         
-                      '''
+                      max_time=90,
+                      max_tries=4)
 def import_image(image_file, conn, dataset_id, session_key):
     image_ids = []
 
@@ -184,7 +185,6 @@ def check_subdir_status(subdir_path):
 
 def update_subdir_status(subdir_path, status):
     filename = 'status.csv'
-    print(subdir_path)
 
     # check file exists, if not create it
     if not os.path.exists(filename):
@@ -286,6 +286,12 @@ def do_upload():
             # it's a new subdirectory, therefore new dataset
             dataset_id, full_dataset_name = None, None
 
+            # Check if the current sub directory has already been successfully uploaded
+            upload_status = check_subdir_status(cur_subdir)
+
+            if upload_status == True:
+                continue
+
         for file in files:
             if file.endswith(tuple(PERMITTED_FILE_EXTS)):
                 print(file)
@@ -309,6 +315,8 @@ def do_upload():
                         c, cli, remote_conn = connect_to_remote(OMERO_PASSWORD, OMERO_USER)
 
                         dataset_desc = "A dataset"
+                        full_dataset_name = "_".join([figure, dataset_name, strain]).replace(" ", "")
+                        logging.debug(full_dataset_name)
 
                         name_cmd = 'name=' + full_dataset_name
                         desc_cmd = "description=" + dataset_desc
@@ -322,11 +330,15 @@ def do_upload():
                         with open(temp_file, 'r') as tf:
                             txt = tf.readline()
                             dataset_id = re.findall(r'\d+', txt)[0]
-                        print("uploaded dataset ", dataset_id)
-                        remote_ds = remote_conn.getObject("Dataset", dataset_id)
-                        print(remote_ds.getId())
+                        logging.info(":".join(["uploaded dataset ", dataset_id]))
+                        remote_ds = remote_conn.getObject("Dataset", rlong(dataset_id))
+                        logging.debug(remote_ds.getId())
                     finally:
                         close_remote_connection(c, cli, remote_conn)
+
+                    logging.debug(file)
+                    filepath = os.path.join(subdir, file)
+                    logging.debug(filepath)
 
                 if dataset_id is not None:
                     image_ids = None
