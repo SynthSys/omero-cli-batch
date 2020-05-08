@@ -22,8 +22,8 @@ import backoff
 DATA_PATH = os.path.join("/var", "test_data")
 # DATA_PATH = os.path.join("/opt", "omero", "server")
 PERMITTED_FILE_EXTS = [".czi"]
-# OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", "omero")
-OMERO_BIN_PATH = os.path.join("/home", "jovyan", "OMERO.server-5.4.10-ice36-b105", "bin", "omero")
+OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", "omero")
+# OMERO_BIN_PATH = os.path.join("/home", "jovyan", "OMERO.server-5.4.10-ice36-b105", "bin", "omero")
 OMERO_SERVER = "publicomero.bio.ed.ac.uk"
 # OMERO_SERVER = "demo.openmicroscopy.org"
 # OMERO_SERVER = "127.0.0.1"
@@ -33,7 +33,7 @@ OMERO_USER = "jhay1"
 OMERO_PASSWORD = getpass.getpass()
 OMERO_GROUP = "rdm_scrapbook"
 # OMERO_GROUP = "default"
-OMERO_GROUP = "2019-02"
+# OMERO_GROUP = "2019-02"
 OMERO_PORT = 4064
 
 # logging config
@@ -162,7 +162,7 @@ def check_subdir_status(subdir_path):
     if not os.path.exists(filename):
         return upload_status
 
-    with open(filename, mode='r', newline="", encoding='utf8') as csv_file:
+    with open(filename, mode='rb') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='|', lineterminator="\n")
         line_count = 0
         for row in csv_reader:
@@ -188,7 +188,7 @@ def update_subdir_status(subdir_path, status):
 
     # check file exists, if not create it
     if not os.path.exists(filename):
-        with open(filename, 'w', newline="", encoding='utf8') as csv_file:
+        with open(filename, 'wb') as csv_file:
             csv_writer = csv.DictWriter(csv_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
             csv_writer.writeheader()
             csv_file.close()
@@ -198,7 +198,7 @@ def update_subdir_status(subdir_path, status):
     shutil.copy(filename, temp_file.name)
     updated_status = False
 
-    with open(filename, mode='r', newline="", encoding='utf8') as csv_file, temp_file:
+    with open(filename, mode='rb') as csv_file, temp_file:
         csv_reader = csv.DictReader(csv_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
         csv_writer = csv.DictWriter(temp_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
         line_count = 0
