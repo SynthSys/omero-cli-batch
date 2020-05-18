@@ -41,7 +41,7 @@ fmtstr = " Name: %(asctime)s: (%(filename)s): %(levelname)s: %(funcName)s Line: 
 datestr = "%m/%d/%Y %I:%M:%S %p "
 # basic logging config
 logging.basicConfig(
-    filename="uploader_output.log",
+    filename="/opt/omero/server/uploader_output.log",
     level=logging.DEBUG,
     filemode="w",
     format=fmtstr,
@@ -51,6 +51,7 @@ logging.basicConfig(
 CSV_STATUS_FILE_FIELDS = ["Directory", "Status"]
 CREATE_MARKER_FILE = False
 USE_CSV_LOG = True
+CSV_LOG_FILENAME = "/opt/omero/server/status.csv"
 
 
 def fileno(file_or_fd):
@@ -155,14 +156,13 @@ def import_image(image_file, conn, dataset_id, session_key):
 
 
 def check_subdir_status(subdir_path):
-    filename = 'status.csv'
     upload_status = False
 
     # check file exists, if not create it
-    if not os.path.exists(filename):
+    if not os.path.exists(CSV_LOG_FILENAME):
         return upload_status
 
-    with open(filename, mode='r', newline="", encoding='utf8') as csv_file:
+    with open(CSV_LOG_FILENAME, mode='r', newline="", encoding='utf8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='|', lineterminator="\n")
         line_count = 0
         for row in csv_reader:
@@ -184,21 +184,19 @@ def check_subdir_status(subdir_path):
 
 
 def update_subdir_status(subdir_path, status):
-    filename = 'status.csv'
-
     # check file exists, if not create it
-    if not os.path.exists(filename):
-        with open(filename, 'w', newline="", encoding='utf8') as csv_file:
+    if not os.path.exists(CSV_LOG_FILENAME):
+        with open(CSV_LOG_FILENAME, 'w', newline="", encoding='utf8') as csv_file:
             csv_writer = csv.DictWriter(csv_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
             csv_writer.writeheader()
             csv_file.close()
             logging.debug("written status CSV header")
 
     temp_file = NamedTemporaryFile(mode='w', delete=False)
-    shutil.copy(filename, temp_file.name)
+    shutil.copy(CSV_LOG_FILENAME, temp_file.name)
     updated_status = False
 
-    with open(filename, mode='r', newline="", encoding='utf8') as csv_file, temp_file:
+    with open(CSV_LOG_FILENAME, mode='r', newline="", encoding='utf8') as csv_file, temp_file:
         csv_reader = csv.DictReader(csv_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
         csv_writer = csv.DictWriter(temp_file, delimiter='|', fieldnames=CSV_STATUS_FILE_FIELDS, lineterminator="\n")
         line_count = 0
@@ -230,7 +228,7 @@ def update_subdir_status(subdir_path, status):
         csv_file.close()
         temp_file.close()
 
-    shutil.move(temp_file.name, filename)
+    shutil.move(temp_file.name, CSV_LOG_FILENAME)
 
 
 def update_status(subdir, image_ids, remote_conn):
