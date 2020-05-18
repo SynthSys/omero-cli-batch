@@ -272,6 +272,37 @@ def update_status(subdir, image_ids, remote_conn):
             update_subdir_status(subdir, "FAILED")
 
 
+def do_change_name():
+    call(["ls", "-l", DATA_PATH])
+
+    cur_subdir = None
+
+    try:
+        for subdir, dirs, files in os.walk(DATA_PATH):
+            if subdir != cur_subdir:
+                cur_subdir = subdir
+                i = 0
+                for file in files:
+                    if file.endswith(tuple(PERMITTED_FILE_EXTS)):
+                        i = i + 1
+                        print(file)
+                        print(cur_subdir)
+                        path_parts = subdir.split(os.sep)
+                        print(path_parts)
+                        path_parts_len = len(path_parts)
+                        strain = path_parts[path_parts_len - 1]
+                        print(strain)
+
+                        orig_file_name = r'' + str(os.path.join(cur_subdir, str(file)))
+                        logging.debug(orig_file_name)
+                        dest_file_name = r'' + str(os.path.join(cur_subdir, strain)) + '_' + str(i).zfill(2) + '.czi'
+
+                        logging.debug(dest_file_name)
+                        os.rename(orig_file_name, dest_file_name)
+    except Exception as e:
+        print(e)
+
+
 def do_upload():
 
     call(["ls", "-l", DATA_PATH])
