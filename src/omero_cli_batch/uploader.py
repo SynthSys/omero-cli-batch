@@ -309,7 +309,7 @@ def do_upload():
 
                 orig_file_name = r'' + str(os.path.join(cur_subdir, str(file)))
                 logging.debug(orig_file_name)
-                dest_file_name = r'' + str(os.path.join(cur_subdir, strain)) + '_' + str(i) + '.czi'
+                dest_file_name = r'' + str(os.path.join(cur_subdir, strain)) + '_' + str(i).zfill(2) + '.czi'
                 logging.debug(dest_file_name)
                 os.rename(orig_file_name, dest_file_name)
 
