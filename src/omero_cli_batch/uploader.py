@@ -24,16 +24,16 @@ DATA_PATH = os.path.join("/var", "test_data")
 PERMITTED_FILE_EXTS = [".czi"]
 OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", "omero")
 # OMERO_BIN_PATH = os.path.join("/home", "jovyan", "OMERO.server-5.4.10-ice36-b105", "bin", "omero")
-# OMERO_SERVER = "publicomero.bio.ed.ac.uk"
-OMERO_SERVER = "demo.openmicroscopy.org"
+OMERO_SERVER = "publicomero.bio.ed.ac.uk"
+# OMERO_SERVER = "demo.openmicroscopy.org"
 # OMERO_SERVER = "127.0.0.1"
-# OMERO_USER = "jhay1"
-OMERO_USER = "jhay"
+OMERO_USER = "jhay1"
+# OMERO_USER = "jhay"
 # OMERO_USER = "root"
 OMERO_PASSWORD = getpass.getpass()
-# OMERO_GROUP = "rdm_scrapbook"
+OMERO_GROUP = "rdm_scrapbook"
 # OMERO_GROUP = "default"
-OMERO_GROUP = "2019-02"
+# OMERO_GROUP = "2019-02"
 OMERO_PORT = 4064
 
 # logging config
@@ -298,7 +298,8 @@ def do_change_name():
                         dest_file_name = r'' + str(os.path.join(cur_subdir, strain)) + '_' + str(i).zfill(2) + '.czi'
 
                         logging.debug(dest_file_name)
-                        os.rename(orig_file_name, dest_file_name)
+                        new_name = os.rename(orig_file_name, dest_file_name)
+                        print(new_name)
     except Exception as e:
         print(e)
 
@@ -323,32 +324,20 @@ def do_upload():
             if upload_status == True:
                 continue
 
-            i = 0
-
         for file in files:
             if file.endswith(tuple(PERMITTED_FILE_EXTS)):
-                i = i + 1
                 print(file)
                 filepath = os.path.join(subdir, file)
                 print(filepath)
                 path_parts = subdir.split(os.sep)
-                print(len(path_parts))
-                print(path_parts[0])
-
                 path_parts_len = len(path_parts)
                 strain = path_parts[path_parts_len-1]
-
-                orig_file_name = r'' + str(os.path.join(cur_subdir, str(file)))
-                logging.debug(orig_file_name)
-                dest_file_name = r'' + str(os.path.join(cur_subdir, strain)) + '_' + str(i).zfill(2) + '.czi'
-                logging.debug(dest_file_name)
-                os.rename(orig_file_name, dest_file_name)
 
                 dataset_name = path_parts[path_parts_len-2]
                 figure = path_parts[path_parts_len-3]
 
                 full_dataset_name = "_".join([figure, dataset_name, strain]).replace(" ", "")
-                print(full_dataset_name)
+                logging.debug(full_dataset_name)
 
                 if dataset_id is None:
                     try:
@@ -390,8 +379,8 @@ def do_upload():
                         # This temp_file is a work around to get hold of the id of uploaded
                         # images from stdout.
                         image_desc = "an image"
-                        # target_dataset = ":".join(["Dataset", "id", dataset_id])
-                        target_dataset = ":".join(["Dataset", "name", full_dataset_name])
+                        target_dataset = ":".join(["Dataset", "id", dataset_id])
+                        # target_dataset = ":".join(["Dataset", "name", full_dataset_name])
                         if filepath:
                             #cli.onecmd(["import", filepath, '-T', target_dataset, "-g", OMERO_GROUP,
                             #            '--description', image_desc, '--no-upgrade-check'])
@@ -410,6 +399,7 @@ def do_upload():
 
 def main():
     print ("hello world!")
+    #do_change_name()
     do_upload()
 
 
