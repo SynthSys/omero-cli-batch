@@ -166,16 +166,19 @@ def check_subdir_status(subdir_path):
         csv_reader = csv.reader(csv_file, delimiter='|', lineterminator="\n")
         line_count = 0
         for row in csv_reader:
-            if line_count == 0:
-                logging.debug("Column names are {}".format(row))
-                line_count += 1
-            else:
-                logging.debug("\t {} subdirectory has status {}".format(row[0], row[1]))
-                line_count += 1
+            if row is not None and len(row) > 1:
+                if line_count == 0:
+                    logging.debug("Column names are {}".format(row))
+                    line_count += 1
+                else:
+                    logging.debug("\t {} subdirectory has status {}".format(row[0], row[1]))
+                    line_count += 1
 
-                if row[0] == subdir_path:
-                    if row[1] == "SUCCESS":
-                        upload_status = True
+                    if row[0] == subdir_path:
+                        if row[1] == "SUCCESS":
+                            upload_status = True
+            else:
+                logging.warning("Line {} in {} is invalid!".format(str(line_count), csv_file))
 
         logging.debug("Processed {} lines.".format(line_count))
         csv_file.close()
