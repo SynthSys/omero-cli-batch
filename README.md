@@ -65,12 +65,12 @@ ln -s /opt/omero/server/OMERO.server-5.4.10-ice36-b105/lib/ /opt/omero/server/mi
 /opt/omero/server/omero-cli-batch/src/omero_cli_batch/uploader27.py
 ```
 
-## Python 3 - omero-py 5.6.2
+## Python 3 - omero-py 5.6.1
 
 For the **Python 3** version, here are the instructions:
 
 ```shell script
-docker pull docker pull openmicroscopy/omero-server:5.6.1
+docker pull openmicroscopy/omero-server:5.6.1
 
 docker run -d --name postgres -e POSTGRES_PASSWORD=postgres postgres
 
@@ -84,11 +84,16 @@ docker run -d --name omero-server_5.6.1 --link postgres:db
     -v '/home/user/code/omero-cli-batch:/opt/omero/server/omero-cli-batch:ro'
     openmicroscopy/omero-server:5.6.1
 
+docker exec -it -uroot omero-server_5.6.1 /bin/bash
+source /opt/omero/server/venv3/bin/activate
+pip install backoff
+exit
+
 docker exec -it omero-server_5.6.1 /bin/bash
 source /opt/omero/server/venv3/bin/activate
 
 # run the uploader script
-/opt/omero/server/omero-cli-batch/src/omero_cli_batch/uploader.py
+python3 /opt/omero/server/omero-cli-batch/src/omero_cli_batch/uploader.py
 ```
 
 
