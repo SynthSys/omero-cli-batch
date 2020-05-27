@@ -74,14 +74,14 @@ docker pull openmicroscopy/omero-server:5.6.1
 
 docker run -d --name postgres -e POSTGRES_PASSWORD=postgres postgres
 
-docker run -d --name omero-server_5.6.1 --link postgres:db
+docker run -d --name omero-server_5.6.1 --link postgres:db \
     -e CONFIG_omero_db_user=postgres \
     -e CONFIG_omero_db_pass=postgres \
     -e CONFIG_omero_db_name=postgres \
     -e ROOTPASS=omero-root-password \
     -p 4063:4063 -p 4064:4064 \
-    -v '/home/user/omero_data:/var/test_data:ro'
-    -v '/home/user/code/omero-cli-batch:/opt/omero/server/omero-cli-batch:ro'
+    -v '/home/user/omero_data:/var/test_data:ro' \
+    -v '/home/user/code/omero-cli-batch:/opt/omero/server/omero-cli-batch:ro' \
     openmicroscopy/omero-server:5.6.1
 
 docker exec -it -uroot omero-server_5.6.1 /bin/bash
