@@ -8,6 +8,7 @@ import sys
 import logging
 import random
 import csv
+from enum import Enum
 import shutil
 from contextlib import contextmanager
 import getpass
@@ -36,6 +37,7 @@ OMERO_GROUP = "rdm_scrapbook"
 # OMERO_GROUP = "2019-02"
 OMERO_PORT = 4064
 
+
 # logging config
 fmtstr = " Name: %(asctime)s: (%(filename)s): %(levelname)s: %(funcName)s Line: %(lineno)d - %(message)s"
 datestr = "%m/%d/%Y %I:%M:%S %p "
@@ -52,6 +54,12 @@ CSV_STATUS_FILE_FIELDS = ["Directory", "Status"]
 CREATE_MARKER_FILE = False
 USE_CSV_LOG = True
 CSV_LOG_FILENAME = "/opt/omero/server/status.csv"
+
+
+class UploadStatus(Enum):
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    NOT_PRESENT = "NOT_PRESENT"
 
 
 def fileno(file_or_fd):
@@ -155,8 +163,8 @@ def import_image(image_file, conn, dataset_id, session_key):
     return image_ids
 
 
-def check_subdir_status(subdir_path):
-    upload_status = False
+def check_file_path_status(file_path):
+    upload_status = UploadStatus.NOT_PRESENT
 
     # check file exists, if not create it
     if not os.path.exists(CSV_LOG_FILENAME):
@@ -174,19 +182,24 @@ def check_subdir_status(subdir_path):
                     logging.debug("\t {} subdirectory has status {}".format(row[0], row[1]))
                     line_count += 1
 
-                    if row[0] == subdir_path:
-                        if row[1] == "SUCCESS":
-                            upload_status = True
+                    if row[0] == file_path:
+                        if UploadStatus[row[1]] == UploadStatus.SUCCESS:
+                            print("Status: SUCCESS!")
+                            upload_status = UploadStatus.SUCCESS
+                        elif UploadStatus[row[1]] == UploadStatus.FAILED:
+                            print("Status: FAILED!")
+                            upload_status = UploadStatus.FAILED
             else:
                 logging.warning("Line {} in {} is invalid!".format(str(line_count), csv_file))
 
         logging.debug("Processed {} lines.".format(line_count))
         csv_file.close()
 
+    print("Status: {}!".format(upload_status))
     return upload_status
 
 
-def update_subdir_status(subdir_path, status):
+def update_file_path_status(file_path, status):
     # check file exists, if not create it
     if not os.path.exists(CSV_LOG_FILENAME):
         with open(CSV_LOG_FILENAME, 'w', newline="", encoding='utf8') as csv_file:
@@ -211,9 +224,9 @@ def update_subdir_status(subdir_path, status):
             line_count += 1
             logging.debug("##################")
             logging.debug("Row: {}".format(row[h0]))
-            logging.debug("Subdir: {}".format(subdir_path))
+            logging.debug("Subdir: {}".format(file_path))
             logging.debug("##################")
-            if row[h0] == str(subdir_path):
+            if row[h0] == str(file_path):
                 logging.debug("updating status row {}".format(row[h0]))
                 row[h1] = status
                 updated_status = True
@@ -223,8 +236,8 @@ def update_subdir_status(subdir_path, status):
             csv_writer.writerow(row)
 
         if updated_status == False:
-            logging.debug("adding status row {}".format(subdir_path))
-            row = {h0: subdir_path,
+            logging.debug("adding status row {}".format(file_path))
+            row = {h0: file_path,
                    h1: status}
             csv_writer.writerow(row)
 
@@ -234,7 +247,7 @@ def update_subdir_status(subdir_path, status):
     shutil.move(temp_file.name, CSV_LOG_FILENAME)
 
 
-def update_status(subdir, image_ids, remote_conn):
+def update_status(file_path, sub_dir, image_ids, remote_conn):
     if image_ids is not None:
         for uploaded_image_id in image_ids:
             logging.info(":".join(["uploaded image ", str(uploaded_image_id)]))
@@ -247,30 +260,30 @@ def update_status(subdir, image_ids, remote_conn):
         if CREATE_MARKER_FILE == True:
             try:
                 # write out SUCCESS marker file to indicate upload completed
-                status_file_path = os.path.join(subdir, "SUCCESS")
+                status_file_path = os.path.join(sub_dir, "SUCCESS")
                 open(status_file_path, 'a').close()
             except Exception as e:
                 logging.exception("Error")
 
         if USE_CSV_LOG == True:
-            update_subdir_status(subdir, "SUCCESS")
+            update_file_path_status(file_path, UploadStatus.SUCCESS.name)
     else:
         if CREATE_MARKER_FILE == True:
             try:
                 # remove SUCCESS marker file if it exists
-                status_file_path = os.path.join(subdir, "SUCCESS")
+                status_file_path = os.path.join(sub_dir, "SUCCESS")
 
                 if os.path.isfile(status_file_path):
                     os.remove(status_file_path)
 
                 # write out FAILURE marker file to indicate this sub dir needs uploaded again
-                status_file_path = os.path.join(subdir, "FAILED")
+                status_file_path = os.path.join(sub_dir, "FAILED")
                 open(status_file_path, 'a').close()
             except Exception as e:
                 logging.exception("Error")
 
         if USE_CSV_LOG == True:
-            update_subdir_status(subdir, "FAILED")
+            update_file_path_status(sub_dir, UploadStatus.FAILED.name)
 
 
 def do_change_name():
@@ -320,7 +333,7 @@ def do_upload():
             dataset_id, full_dataset_name = None, None
 
             # Check if the current sub directory has already been successfully uploaded
-            upload_status = check_subdir_status(cur_subdir)
+            upload_status = check_file_path_status(cur_subdir)
 
             if upload_status == True:
                 continue
@@ -329,6 +342,16 @@ def do_upload():
             if file.endswith(tuple(PERMITTED_FILE_EXTS)):
                 print(file)
                 filepath = os.path.join(subdir, file)
+
+                upload_status = check_file_path_status(filepath)
+
+                if upload_status == UploadStatus.SUCCESS:
+                    print("Status: SUCCESS!")
+                    continue
+                elif upload_status == UploadStatus.NOT_PRESENT:
+                    # Set the status to 'FAILED' by default
+                    update_status(filepath, subdir, None, None)
+
                 print(filepath)
                 path_parts = subdir.split(os.sep)
                 path_parts_len = len(path_parts)
@@ -391,7 +414,7 @@ def do_upload():
                                 print(cur_subdir)
                             logging.debug(image_ids)
 
-                            update_status(cur_subdir, image_ids, remote_conn)
+                            update_status(filepath, subdir, image_ids, remote_conn)
                     except Exception as e:
                         print(e)
                     finally:
