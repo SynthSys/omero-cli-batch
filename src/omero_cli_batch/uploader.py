@@ -335,7 +335,7 @@ def do_upload():
             # Check if the current sub directory has already been successfully uploaded
             upload_status = check_file_path_status(cur_subdir)
 
-            if upload_status == True:
+            if upload_status == UploadStatus.SUCCESS:
                 continue
 
         for file in files:
