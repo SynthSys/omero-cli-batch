@@ -184,10 +184,8 @@ def check_file_path_status(file_path):
 
                     if row[0] == file_path:
                         if UploadStatus[row[1]] == UploadStatus.SUCCESS:
-                            print("Status: SUCCESS!")
                             upload_status = UploadStatus.SUCCESS
                         elif UploadStatus[row[1]] == UploadStatus.FAILED:
-                            print("Status: FAILED!")
                             upload_status = UploadStatus.FAILED
             else:
                 logging.warning("Line {} in {} is invalid!".format(str(line_count), csv_file))
@@ -195,7 +193,6 @@ def check_file_path_status(file_path):
         logging.debug("Processed {} lines.".format(line_count))
         csv_file.close()
 
-    print("Status: {}!".format(upload_status))
     return upload_status
 
 
@@ -336,6 +333,7 @@ def do_upload():
             upload_status = check_file_path_status(cur_subdir)
 
             if upload_status == UploadStatus.SUCCESS:
+                print("skipping")
                 continue
 
         for file in files:
@@ -347,9 +345,11 @@ def do_upload():
 
                 if upload_status == UploadStatus.SUCCESS:
                     print("Status: SUCCESS!")
+                    print(upload_status)
                     continue
                 elif upload_status == UploadStatus.NOT_PRESENT:
                     # Set the status to 'FAILED' by default
+                    print(upload_status)
                     update_status(filepath, subdir, None, None)
 
                 print(filepath)
