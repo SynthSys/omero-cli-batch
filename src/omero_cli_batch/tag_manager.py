@@ -208,7 +208,7 @@ def delete_duplicate_tags(c, cli, remote_conn):
     anno_list = find_objects_by_query(c, DUPLICATE_TAGS_QUERY, params)
     # print(anno_list)
 
-    cur_tag_name, cur_tag_id = None, 0
+    cur_tag_name, cur_tag_id = None, None
     duplicate_tag_ids = []
 
     for anno in anno_list:
@@ -241,25 +241,25 @@ def delete_duplicate_tags(c, cli, remote_conn):
                 cur_tag_name = tag_name
                 cur_tag_id = tag_id
                 duplicate_tag_ids = []
-            else:
+            elif tag_name == cur_tag_name and tag_id != cur_tag_id:
                 # it's a duplicate tag;
                 print("duplicate: {}".format(tag_id))
                 if tag_id not in duplicate_tag_ids:
                     duplicate_tag_ids.append(tag_id)
 
-            # catch the final iteration
-            if len(duplicate_tag_ids) > 0:
-                print('here')
-                print(duplicate_tag_ids)
-                anno_ids = map(rtypes.rlong, duplicate_tag_ids)
-                print(anno_ids)
-                params.map = {'aids': rtypes.rlist(anno_ids)}
-                datasets_list = find_objects_by_query(c, DATASETS_BY_TAG_ID_QUERY, params)
-                print(datasets_list)
-                update_dataset_tag(c, datasets_list, cur_tag_id)
+    # catch the final iteration
+    if len(duplicate_tag_ids) > 0:
+        print('here')
+        print(duplicate_tag_ids)
+        anno_ids = map(rtypes.rlong, duplicate_tag_ids)
+        print(anno_ids)
+        params.map = {'aids': rtypes.rlist(anno_ids)}
+        datasets_list = find_objects_by_query(c, DATASETS_BY_TAG_ID_QUERY, params)
+        print(datasets_list)
+        update_dataset_tag(c, datasets_list, cur_tag_id)
 
-                delete_tags(c, duplicate_tag_ids, c.getSessionId())
-                print(duplicate_tag_ids)
+        delete_tags(c, duplicate_tag_ids, c.getSessionId())
+        print(duplicate_tag_ids)
 
 
 def main():
