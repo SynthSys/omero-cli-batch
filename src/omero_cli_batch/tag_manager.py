@@ -59,6 +59,10 @@ DUPLICATE_TAGS_QUERY = "select a from Annotation a, DatasetAnnotationLink l, Dat
     where (select count(*) from Annotation a2 \
     where  a.textValue = a2.textValue \
     and a.description = a2.description) > 1 \
+    or (select count(*) from Annotation a2 \
+    where a.textValue = a2.textValue \
+    and coalesce(a.description, '') = '' \
+    and coalesce(a2.description, '') = '') > 1 \
     and l.child = a.id \
     and d.id = l.parent \
     order by a.textValue, a.id"
@@ -160,11 +164,11 @@ def upload_to_omero_cli(cli, imagePath, dataset_id):
     print(image_id)
 
 
-def update_dataset_tag(client, datasets_list, cur_tag_id):
+def update_dataset_tag(client, datasets_list, tag_id):
     for dataset in datasets_list:
         link = model.DatasetAnnotationLinkI()
         link.setParent(model.DatasetI(dataset.getId().getValue(), False))
-        link.setChild(model.TagAnnotationI(cur_tag_id, False))
+        link.setChild(model.TagAnnotationI(tag_id, False))
         tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
 
 
@@ -212,6 +216,9 @@ def delete_duplicate_tags(c, cli, remote_conn):
             tag_name = anno.getTextValue().getValue()
             tag_id = anno.getId().getValue()
             print(tag_name)
+            print(cur_tag_name)
+            print(tag_id)
+            print(cur_tag_id)
 
             if tag_name != cur_tag_name and tag_id != cur_tag_id:
                 print("changing")
@@ -219,13 +226,16 @@ def delete_duplicate_tags(c, cli, remote_conn):
                 # params.map = {'aid': rtypes.rlong(cur_tag_id)}
                 if len(duplicate_tag_ids) > 0:
                     print('here')
-                    delete_tags(c, duplicate_tag_ids, c.getSessionId())
-
+                    print(duplicate_tag_ids)
                     anno_ids = map(rtypes.rlong, duplicate_tag_ids)
+                    print(anno_ids)
                     params.map = {'aids': rtypes.rlist(anno_ids)}
                     datasets_list = find_objects_by_query(c, DATASETS_BY_TAG_ID_QUERY, params)
                     print(datasets_list)
                     update_dataset_tag(c, datasets_list, cur_tag_id)
+
+                    delete_tags(c, duplicate_tag_ids, c.getSessionId())
+                    print(duplicate_tag_ids)
 
                 # reset the parameters
                 cur_tag_name = tag_name
@@ -234,23 +244,27 @@ def delete_duplicate_tags(c, cli, remote_conn):
             else:
                 # it's a duplicate tag;
                 print("duplicate: {}".format(tag_id))
-                duplicate_tag_ids.append(tag_id)
+                if tag_id not in duplicate_tag_ids:
+                    duplicate_tag_ids.append(tag_id)
 
             # catch the final iteration
             if len(duplicate_tag_ids) > 0:
                 print('here')
-                delete_tags(c, duplicate_tag_ids, c.getSessionId())
-
+                print(duplicate_tag_ids)
                 anno_ids = map(rtypes.rlong, duplicate_tag_ids)
+                print(anno_ids)
                 params.map = {'aids': rtypes.rlist(anno_ids)}
                 datasets_list = find_objects_by_query(c, DATASETS_BY_TAG_ID_QUERY, params)
                 print(datasets_list)
                 update_dataset_tag(c, datasets_list, cur_tag_id)
 
+                delete_tags(c, duplicate_tag_ids, c.getSessionId())
+                print(duplicate_tag_ids)
+
 
 def main():
     USERNAME = 'root'
-    PASSWORD = ''
+    PASSWORD = 'omero-root-password'
     print("hello world!")
     # do_change_name()
     c, cli, remote_conn = connect_to_remote(USERNAME, PASSWORD)
