@@ -42,20 +42,30 @@ DATASETS_BY_TAG_QUERY = "select d from Dataset d left outer join fetch d.annotat
 IMAGES_BY_TAG_QUERY = "select i from Image i left outer join fetch i.annotationLinks as alinks \
              left outer join fetch alinks.child as annotation where alinks.child.textValue like :anno_text"
 '''
-DUPLICATE_TAGS_QUERY = "select d from Dataset d left outer join fetch d.annotationLinks as alinks \
-             left outer join fetch alinks.child as annotation where alinks.child.textValue like :anno_text"
+Predicates for all scenarios: Multiple tags with the same name, different ID, same description (or null/empty 
+    description)
 
-    "select a,d from Annotation a, Dataset d left outer join fetch d.annotationLinks as alinks \            
-                l, public.dataset d \
-                where (select count(*) from public.annotation a2 \
-                --where l.parent = l2.parent) > 1 \
-                where a.discriminator = a2.discriminator \
-                and  a.textvalue = a2.textvalue \
-                and a.description = a2.description) > 1 \
-                and l.child = a.id \
-                and d.id = l.parent"
+Scenario 1
+    * Two or more datasets share an identical tag (i.e. tag object ID is the same for all)
+    * There are other tag(s) that have the same name and description as that tag, but none are used by any dataset
+    * When the tag manager script is run, it should if necessary, move the datasets to use the tag with the minimum ID 
+    value and delete all of the remaining duplicate tags
+
+Scenario 2
+    * One or more datasets use a duplicate tag (i.e. tag object IDs are different but names and descriptions are the
+    same
+    * When the tag manager script is run, it should move all datasets to use the same identical tag with the minimum
+    ID value and delete all of the remaining duplicate tags
+
+Scenario 2
+    * One or more images use a duplicate tag (i.e. tag object IDs are different but names and descriptions are the
+    same
+    * When the tag manager script is run, it should move all images to use the same identical tag with the minimum
+    ID value and delete all of the remaining duplicate tags
 '''
-DUPLICATE_TAGS_QUERY = "select a from Annotation a, DatasetAnnotationLink l, Dataset d \
+
+# Scenario 1
+DUPLICATE_TAGS_S1_QUERY = "select a from Annotation a, DatasetAnnotationLink l, Dataset d \
     where (select count(*) from Annotation a2 \
     where  a.textValue = a2.textValue \
     and a.description = a2.description) > 1 \
@@ -67,7 +77,34 @@ DUPLICATE_TAGS_QUERY = "select a from Annotation a, DatasetAnnotationLink l, Dat
     and d.id = l.parent \
     order by a.textValue, a.id"
 
+# Scenario 2
+DUPLICATE_TAGS_S2_QUERY = "select a from Annotation a \
+    where (select count(*) from Annotation a2 \
+    where  a.textValue = a2.textValue \
+    and a.description = a2.description) > 1 \
+    or (select count(*) from Annotation a2 \
+    where a.textValue = a2.textValue \
+    and coalesce(a.description, '') = '' \
+    and coalesce(a2.description, '') = '') > 1 \
+    order by a.textValue, a.id"
+
+# Scenario 3
+DUPLICATE_TAGS_S3_QUERY = "select a from Annotation a, ImageAnnotationLink l, Image i \
+    where (select count(*) from Annotation a2 \
+    where  a.textValue = a2.textValue \
+    and a.description = a2.description) > 1 \
+    or (select count(*) from Annotation a2 \
+    where a.textValue = a2.textValue \
+    and coalesce(a.description, '') = '' \
+    and coalesce(a2.description, '') = '') > 1 \
+    and l.child = a.id \
+    and i.id = l.parent \
+    order by a.textValue, a.id"
+
 DATASETS_BY_TAG_ID_QUERY = "select d from Dataset d left outer join fetch d.annotationLinks as alinks \
+             left outer join fetch alinks.child as annotation where alinks.child.id in :aids"
+
+IMAGES_BY_TAG_ID_QUERY = "select i from Image i left outer join fetch i.annotationLinks as alinks \
              left outer join fetch alinks.child as annotation where alinks.child.id in :aids"
 
 
@@ -172,6 +209,14 @@ def update_dataset_tag(client, datasets_list, tag_id):
         tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
 
 
+def update_image_tag(client, images_list, tag_id):
+    for image in images_list:
+        link = model.ImageAnnotationLinkI()
+        link.setParent(model.DatasetI(image.getId().getValue(), False))
+        link.setChild(model.TagAnnotationI(tag_id, False))
+        tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
+
+
 def delete_tags(client, tag_id_list, session_key):
     for tag_id in tag_id_list:
         args = [sys.executable]
@@ -205,7 +250,8 @@ def delete_duplicate_tags(c, cli, remote_conn):
     params = om_sys.Parameters()
     params.map = {}
 
-    anno_list = find_objects_by_query(c, DUPLICATE_TAGS_QUERY, params)
+    anno_list = find_objects_by_query(c, DUPLICATE_TAGS_S1_QUERY, params)
+    anno_list.extend(find_objects_by_query(c, DUPLICATE_TAGS_S2_QUERY, params))
     # print(anno_list)
 
     cur_tag_name, cur_tag_id = None, None
