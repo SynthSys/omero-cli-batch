@@ -246,12 +246,31 @@ def delete_tags(client, tag_id_list, session_key):
                 anno_ids.append(str(x.replace('TagAnnotation:', '')))
 
 
-def delete_duplicate_tags(c, cli, remote_conn):
+def update_tag_links(duplicate_tag_ids, client, query, replacement_tag_id):
     params = om_sys.Parameters()
     params.map = {}
 
-    anno_list = find_objects_by_query(c, DUPLICATE_TAGS_S1_QUERY, params)
-    anno_list.extend(find_objects_by_query(c, DUPLICATE_TAGS_S2_QUERY, params))
+    print('here')
+    print(duplicate_tag_ids)
+    anno_ids = map(rtypes.rlong, duplicate_tag_ids)
+    print(anno_ids)
+    params.map = {'aids': rtypes.rlist(anno_ids)}
+    objects_list = find_objects_by_query(client, query, params)
+    print(objects_list)
+    update_dataset_tag(client, objects_list, replacement_tag_id)
+
+
+def delete_duplicate_tags(duplicate_tag_ids, client):
+    delete_tags(client, duplicate_tag_ids, client.getSessionId())
+    print(duplicate_tag_ids)
+
+
+def manage_duplicate_tags(client):
+    params = om_sys.Parameters()
+    params.map = {}
+
+    anno_list = find_objects_by_query(client, DUPLICATE_TAGS_S1_QUERY, params)
+    anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S2_QUERY, params))
     # print(anno_list)
 
     cur_tag_name, cur_tag_id = None, None
@@ -271,17 +290,8 @@ def delete_duplicate_tags(c, cli, remote_conn):
                 # it's a fresh tag; find all datasets for tag and update them
                 # params.map = {'aid': rtypes.rlong(cur_tag_id)}
                 if len(duplicate_tag_ids) > 0:
-                    print('here')
-                    print(duplicate_tag_ids)
-                    anno_ids = map(rtypes.rlong, duplicate_tag_ids)
-                    print(anno_ids)
-                    params.map = {'aids': rtypes.rlist(anno_ids)}
-                    datasets_list = find_objects_by_query(c, DATASETS_BY_TAG_ID_QUERY, params)
-                    print(datasets_list)
-                    update_dataset_tag(c, datasets_list, cur_tag_id)
-
-                    delete_tags(c, duplicate_tag_ids, c.getSessionId())
-                    print(duplicate_tag_ids)
+                    update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, cur_tag_id)
+                    delete_duplicate_tags(duplicate_tag_ids, client)
 
                 # reset the parameters
                 cur_tag_name = tag_name
@@ -295,17 +305,8 @@ def delete_duplicate_tags(c, cli, remote_conn):
 
     # catch the final iteration
     if len(duplicate_tag_ids) > 0:
-        print('here')
-        print(duplicate_tag_ids)
-        anno_ids = map(rtypes.rlong, duplicate_tag_ids)
-        print(anno_ids)
-        params.map = {'aids': rtypes.rlist(anno_ids)}
-        datasets_list = find_objects_by_query(c, DATASETS_BY_TAG_ID_QUERY, params)
-        print(datasets_list)
-        update_dataset_tag(c, datasets_list, cur_tag_id)
-
-        delete_tags(c, duplicate_tag_ids, c.getSessionId())
-        print(duplicate_tag_ids)
+        update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, cur_tag_id)
+        delete_duplicate_tags(duplicate_tag_ids, client)
 
 
 def main():
@@ -319,7 +320,7 @@ def main():
     params = om_sys.Parameters()
     dataset_id = 4300  ################## Replace this with your own parameter
     params.map = {'did': rtypes.rlong(dataset_id)}
-    delete_duplicate_tags(c, cli, remote_conn)
+    manage_duplicate_tags(c)
     close_remote_connection(c, cli, remote_conn)
 
 
