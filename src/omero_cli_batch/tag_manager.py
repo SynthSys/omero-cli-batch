@@ -15,7 +15,8 @@ from omero.rtypes import rlong
 from omero import model
 
 # OMERO_SERVER = 'demo.openmicroscopy.org'
-OMERO_SERVER = '172.17.0.3'
+# OMERO_SERVER = '172.17.0.3'
+OMERO_SERVER = 'publicomero.bio.ed.ac.uk'
 OMERO_PORT = 4064
 IMAGE_PATH = '/home/jhay/Downloads/Download-Cat-PNG-Clipart.png'
 OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", "omero")
@@ -256,12 +257,16 @@ def update_tag_links(duplicate_tag_ids, client, query, replacement_tag_id):
     print(anno_ids)
     params.map = {'aids': rtypes.rlist(anno_ids)}
     objects_list = find_objects_by_query(client, query, params)
+    print("updating these objects:")
     print(objects_list)
-    update_dataset_tag(client, objects_list, replacement_tag_id)
+    object_ids = [i.getId().getValue() for i in objects_list]
+    print(object_ids)
+    # update_dataset_tag(client, objects_list, replacement_tag_id)
 
 
 def delete_duplicate_tags(duplicate_tag_ids, client):
-    delete_tags(client, duplicate_tag_ids, client.getSessionId())
+    #delete_tags(client, duplicate_tag_ids, client.getSessionId())
+    print("Deleting these tags:")
     print(duplicate_tag_ids)
 
 
@@ -271,6 +276,7 @@ def manage_duplicate_tags(client):
 
     anno_list = find_objects_by_query(client, DUPLICATE_TAGS_S1_QUERY, params)
     anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S2_QUERY, params))
+    anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S3_QUERY, params))
     # print(anno_list)
 
     cur_tag_name, cur_tag_id = None, None
@@ -291,6 +297,7 @@ def manage_duplicate_tags(client):
                 # params.map = {'aid': rtypes.rlong(cur_tag_id)}
                 if len(duplicate_tag_ids) > 0:
                     update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, cur_tag_id)
+                    update_tag_links(duplicate_tag_ids, client, IMAGES_BY_TAG_ID_QUERY, cur_tag_id)
                     delete_duplicate_tags(duplicate_tag_ids, client)
 
                 # reset the parameters
@@ -306,12 +313,18 @@ def manage_duplicate_tags(client):
     # catch the final iteration
     if len(duplicate_tag_ids) > 0:
         update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, cur_tag_id)
+        update_tag_links(duplicate_tag_ids, client, IMAGES_BY_TAG_ID_QUERY, cur_tag_id)
         delete_duplicate_tags(duplicate_tag_ids, client)
 
 
 def main():
     USERNAME = 'root'
     PASSWORD = 'omero-root-password'
+
+    USERNAME = 'xxxxxxx'
+    PASSWORD = 'xxxxxxx'
+    OMERO_GROUP = 'rdm_scrapbook'
+
     print("hello world!")
     # do_change_name()
     c, cli, remote_conn = connect_to_remote(USERNAME, PASSWORD)
