@@ -69,9 +69,7 @@ Scenario 3
 
 # Scenario 1
 DUPLICATE_TAGS_S1_QUERY = "select a from Annotation a, DatasetAnnotationLink l, Dataset d \
-    where a.id >= 1 \
-    and a.id <= 10 \
-    and (select count(*) from Annotation a2 \
+    where (select count(*) from Annotation a2 \
     where  a.textValue = a2.textValue \
     and a.description = a2.description) > 1 \
     and l.child = a.id \
@@ -79,9 +77,7 @@ DUPLICATE_TAGS_S1_QUERY = "select a from Annotation a, DatasetAnnotationLink l, 
     order by a.textValue, a.id"
 
 DUPLICATE_TAGS_S2_QUERY = "select a from Annotation a, DatasetAnnotationLink l, Dataset d \
-    where a.id >= 1 \
-    and a.id <= 10 \
-    and (select count(*) from Annotation a2 \
+    where (select count(*) from Annotation a2 \
     where a.textValue = a2.textValue \
     and coalesce(a.description, '') = '' \
     and coalesce(a2.description, '') = '') > 1 \
@@ -91,17 +87,13 @@ DUPLICATE_TAGS_S2_QUERY = "select a from Annotation a, DatasetAnnotationLink l, 
 
 # Scenario 2
 DUPLICATE_TAGS_S3_QUERY = "select a from Annotation a \
-    where a.id >= 1 \
-    and a.id <= 10 \
-    and (select count(*) from Annotation a2 \
+    where (select count(*) from Annotation a2 \
     where  a.textValue = a2.textValue \
     and a.description = a2.description) > 1 \
     order by a.textValue, a.id"
 
 DUPLICATE_TAGS_S4_QUERY = "select a from Annotation a \
-    where a.id >= 1 \
-    and a.id <= 10 \
-    and (select count(*) from Annotation a2 \
+    where (select count(*) from Annotation a2 \
     where a.textValue = a2.textValue \
     and coalesce(a.description, '') = '' \
     and coalesce(a2.description, '') = '') > 1 \
