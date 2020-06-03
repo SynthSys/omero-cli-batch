@@ -133,40 +133,6 @@ IMAGES_BY_TAG_ID_QUERY = "select i from Image i left outer join fetch i.annotati
 
 exit_condition = False
 
-class SessionPingThread(object):
-    """ Threading example class
-    The run() method will be started and it will run in the background
-    until the application exits.
-    """
-    exit_condition = False
-    ping_count = 1
-
-    def __init__(self, interval=60, client=None):
-        """ Constructor
-        :type interval: int
-        :param interval: Check interval, in seconds
-        """
-        self.interval = interval
-        self.client = client
-
-        thread = threading.Thread(target=self.run, args=())
-        thread.daemon = True                            # Daemonize thread
-        thread.start()                                  # Start the execution
-
-    def run(self):
-        while True:
-            if self.exit_condition == False:
-                print("pinging session: {}".format(self.ping_count))
-                keys = self.client.getInputKeys()
-                self.ping_count = self.ping_count + 1
-                break
-            else:
-                pass
-            time.sleep(self.interval)
-
-    def set_exit_condition(self, exit_condition):
-        self.exit_condition = exit_condition
-
 
 def connect_to_remote(username, password):
     c = omero.client(host=OMERO_SERVER, port=OMERO_PORT,
@@ -233,34 +199,7 @@ def stdout_redirected(to=os.devnull, stdout=None):
             os.dup2(copied.fileno(), stdout_fd)  # $ exec >&copied
 
 
-# def upload_to_omero_cli(conn,imagePath,imgSrc):
-def upload_to_omero_cli(cli, imagePath, dataset_id):
-    # import via cli
-    cmd = ["import", "-d", dataset_id, '-u', USERNAME, '-w', PASSWORD,
-           '-s', OMERO_SERVER, '-p', str(OMERO_PORT), imagePath]
-    print(cmd)
-
-    image_id = None
-    # invoke login
-    # cli.invoke("login")
-    # cli.invoke("hql -q 'select g.name from ExperimenterGroup g'")
-    temp_file = NamedTemporaryFile().name
-
-    with open(temp_file, 'w+') as tf, stdout_redirected(tf):
-        cli.invoke(cmd)
-
-    with open(temp_file, 'r') as tf:
-        for line in tf:
-            print(line)
-
-            res = re.findall('Image:(\d+)', line)
-
-            if len(res) > 0:
-                image_id = res[0]
-
-    print(image_id)
-
-def update_dataset_tag(client, objects_list, tag_id):
+def update_object_tag(client, objects_list, tag_id):
     for object in objects_list:
         link = None
         if isinstance(object, omero.model.DatasetI):
@@ -272,14 +211,6 @@ def update_dataset_tag(client, objects_list, tag_id):
             link.setParent(model.ImageI(object.getId(), False))
             link.setChild(model.TagAnnotationI(tag_id, False))
 
-        tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
-
-
-def update_image_tag(client, images_list, tag_id):
-    for image in images_list:
-        link = model.ImageAnnotationLinkI()
-        link.setParent(model.DatasetI(image.getId().getValue(), False))
-        link.setChild(model.TagAnnotationI(tag_id, False))
         tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
 
 
@@ -327,7 +258,7 @@ def update_tag_links(duplicate_tag_ids, client, query, replacement_tag_id):
     object_ids = [i.getId().getValue() for i in objects_list]
     print(object_ids)
 
-    update_dataset_tag(client, objects_list, replacement_tag_id)
+    update_object_tag(client, objects_list, replacement_tag_id)
 
 
 def delete_duplicate_tags(duplicate_tag_ids, client):
@@ -393,7 +324,6 @@ def ping_session(interval, client):
     global exit_condition
     ping_count = 0
     while True:
-        print("interval: {}".format(interval))
         if exit_condition == False:
             ping_count = ping_count + 1
             print("pinging session: {}".format(ping_count))
@@ -413,18 +343,16 @@ def main():
     OMERO_GROUP = 'rdm_scrapbook'
 
     print("hello world!")
-    # do_change_name()
-    c, cli, remote_conn = connect_to_remote(USERNAME, PASSWORD)
-    # query_remote(cli)
-    # upload_to_omero_cli(cli, IMAGE_PATH, '3973')
 
-    # pinger = SessionPingThread(interval=60, client=c)
+    c, cli, remote_conn = connect_to_remote(USERNAME, PASSWORD)
+
+    # run session ping function as daemon to keep connection alive
     keep_alive_thread = threading.Thread(target=ping_session, args=([60, c]))
     keep_alive_thread.daemon = True
     keep_alive_thread.start()
 
     manage_duplicate_tags(c)
-    # pinger.set_exit_condition(True)
+
     global exit_condition
     exit_condition = True
     close_remote_connection(c, cli, remote_conn)
