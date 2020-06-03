@@ -5,6 +5,8 @@ import sys
 from tempfile import NamedTemporaryFile
 import getpass
 import subprocess
+import threading
+import time
 
 import omero
 import omero.cli
@@ -58,7 +60,7 @@ Scenario 2
     * When the tag manager script is run, it should move all datasets to use the same identical tag with the minimum
     ID value and delete all of the remaining duplicate tags
 
-Scenario 2
+Scenario 3
     * One or more images use a duplicate tag (i.e. tag object IDs are different but names and descriptions are the
     same
     * When the tag manager script is run, it should move all images to use the same identical tag with the minimum
@@ -67,10 +69,19 @@ Scenario 2
 
 # Scenario 1
 DUPLICATE_TAGS_S1_QUERY = "select a from Annotation a, DatasetAnnotationLink l, Dataset d \
-    where (select count(*) from Annotation a2 \
+    where a.id >= 1 \
+    and a.id <= 10 \
+    and (select count(*) from Annotation a2 \
     where  a.textValue = a2.textValue \
     and a.description = a2.description) > 1 \
-    or (select count(*) from Annotation a2 \
+    and l.child = a.id \
+    and d.id = l.parent \
+    order by a.textValue, a.id"
+
+DUPLICATE_TAGS_S2_QUERY = "select a from Annotation a, DatasetAnnotationLink l, Dataset d \
+    where a.id >= 1 \
+    and a.id <= 10 \
+    and (select count(*) from Annotation a2 \
     where a.textValue = a2.textValue \
     and coalesce(a.description, '') = '' \
     and coalesce(a2.description, '') = '') > 1 \
@@ -79,22 +90,34 @@ DUPLICATE_TAGS_S1_QUERY = "select a from Annotation a, DatasetAnnotationLink l, 
     order by a.textValue, a.id"
 
 # Scenario 2
-DUPLICATE_TAGS_S2_QUERY = "select a from Annotation a \
-    where (select count(*) from Annotation a2 \
+DUPLICATE_TAGS_S3_QUERY = "select a from Annotation a \
+    where a.id >= 1 \
+    and a.id <= 10 \
+    and (select count(*) from Annotation a2 \
     where  a.textValue = a2.textValue \
     and a.description = a2.description) > 1 \
-    or (select count(*) from Annotation a2 \
+    order by a.textValue, a.id"
+
+DUPLICATE_TAGS_S4_QUERY = "select a from Annotation a \
+    where a.id >= 1 \
+    and a.id <= 10 \
+    and (select count(*) from Annotation a2 \
     where a.textValue = a2.textValue \
     and coalesce(a.description, '') = '' \
     and coalesce(a2.description, '') = '') > 1 \
     order by a.textValue, a.id"
 
 # Scenario 3
-DUPLICATE_TAGS_S3_QUERY = "select a from Annotation a, ImageAnnotationLink l, Image i \
+DUPLICATE_TAGS_S5_QUERY = "select a from Annotation a, ImageAnnotationLink l, Image i \
     where (select count(*) from Annotation a2 \
     where  a.textValue = a2.textValue \
     and a.description = a2.description) > 1 \
-    or (select count(*) from Annotation a2 \
+    and l.child = a.id \
+    and i.id = l.parent \
+    order by a.textValue, a.id"
+
+DUPLICATE_TAGS_S6_QUERY = "select a from Annotation a, ImageAnnotationLink l, Image i \
+    where (select count(*) from Annotation a2 \
     where a.textValue = a2.textValue \
     and coalesce(a.description, '') = '' \
     and coalesce(a2.description, '') = '') > 1 \
@@ -107,6 +130,42 @@ DATASETS_BY_TAG_ID_QUERY = "select d from Dataset d left outer join fetch d.anno
 
 IMAGES_BY_TAG_ID_QUERY = "select i from Image i left outer join fetch i.annotationLinks as alinks \
              left outer join fetch alinks.child as annotation where alinks.child.id in :aids"
+
+exit_condition = False
+
+class SessionPingThread(object):
+    """ Threading example class
+    The run() method will be started and it will run in the background
+    until the application exits.
+    """
+    exit_condition = False
+    ping_count = 1
+
+    def __init__(self, interval=60, client=None):
+        """ Constructor
+        :type interval: int
+        :param interval: Check interval, in seconds
+        """
+        self.interval = interval
+        self.client = client
+
+        thread = threading.Thread(target=self.run, args=())
+        thread.daemon = True                            # Daemonize thread
+        thread.start()                                  # Start the execution
+
+    def run(self):
+        while True:
+            if self.exit_condition == False:
+                print("pinging session: {}".format(self.ping_count))
+                keys = self.client.getInputKeys()
+                self.ping_count = self.ping_count + 1
+                break
+            else:
+                pass
+            time.sleep(self.interval)
+
+    def set_exit_condition(self, exit_condition):
+        self.exit_condition = exit_condition
 
 
 def connect_to_remote(username, password):
@@ -201,12 +260,18 @@ def upload_to_omero_cli(cli, imagePath, dataset_id):
 
     print(image_id)
 
+def update_dataset_tag(client, objects_list, tag_id):
+    for object in objects_list:
+        link = None
+        if isinstance(object, omero.model.DatasetI):
+            link = model.DatasetAnnotationLinkI()
+            link.setParent(model.DatasetI(object.getId(), False))
+            link.setChild(model.TagAnnotationI(tag_id, False))
+        elif isinstance(object, omero.model.ImageI):
+            link = model.ImageAnnotationLinkI()
+            link.setParent(model.ImageI(object.getId(), False))
+            link.setChild(model.TagAnnotationI(tag_id, False))
 
-def update_dataset_tag(client, datasets_list, tag_id):
-    for dataset in datasets_list:
-        link = model.DatasetAnnotationLinkI()
-        link.setParent(model.DatasetI(dataset.getId().getValue(), False))
-        link.setChild(model.TagAnnotationI(tag_id, False))
         tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
 
 
@@ -261,11 +326,12 @@ def update_tag_links(duplicate_tag_ids, client, query, replacement_tag_id):
     print(objects_list)
     object_ids = [i.getId().getValue() for i in objects_list]
     print(object_ids)
-    # update_dataset_tag(client, objects_list, replacement_tag_id)
+
+    update_dataset_tag(client, objects_list, replacement_tag_id)
 
 
 def delete_duplicate_tags(duplicate_tag_ids, client):
-    #delete_tags(client, duplicate_tag_ids, client.getSessionId())
+    delete_tags(client, duplicate_tag_ids, client.getSessionId())
     print("Deleting these tags:")
     print(duplicate_tag_ids)
 
@@ -273,10 +339,16 @@ def delete_duplicate_tags(duplicate_tag_ids, client):
 def manage_duplicate_tags(client):
     params = om_sys.Parameters()
     params.map = {}
+    query_filter = om_sys.Filter()
+    #query_filter.limit = rtypes.rint(10) # should limit and enhance performance of query, but does not seem to
+    params.theFilter = query_filter
 
     anno_list = find_objects_by_query(client, DUPLICATE_TAGS_S1_QUERY, params)
     anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S2_QUERY, params))
     anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S3_QUERY, params))
+    anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S4_QUERY, params))
+    anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S5_QUERY, params))
+    anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S6_QUERY, params))
     # print(anno_list)
 
     cur_tag_name, cur_tag_id = None, None
@@ -317,12 +389,27 @@ def manage_duplicate_tags(client):
         delete_duplicate_tags(duplicate_tag_ids, client)
 
 
+def ping_session(interval, client):
+    global exit_condition
+    ping_count = 0
+    while True:
+        print("interval: {}".format(interval))
+        if exit_condition == False:
+            ping_count = ping_count + 1
+            print("pinging session: {}".format(ping_count))
+            keys = client.getInputKeys()
+        else:
+            break
+
+        time.sleep(interval)
+
+
 def main():
     USERNAME = 'root'
     PASSWORD = 'omero-root-password'
 
-    USERNAME = 'xxxxxxx'
-    PASSWORD = 'xxxxxxx'
+    USERNAME = 'xxxxxx'
+    PASSWORD = 'xxxxxx'
     OMERO_GROUP = 'rdm_scrapbook'
 
     print("hello world!")
@@ -330,10 +417,16 @@ def main():
     c, cli, remote_conn = connect_to_remote(USERNAME, PASSWORD)
     # query_remote(cli)
     # upload_to_omero_cli(cli, IMAGE_PATH, '3973')
-    params = om_sys.Parameters()
-    dataset_id = 4300  ################## Replace this with your own parameter
-    params.map = {'did': rtypes.rlong(dataset_id)}
+
+    # pinger = SessionPingThread(interval=60, client=c)
+    keep_alive_thread = threading.Thread(target=ping_session, args=([60, c]))
+    keep_alive_thread.daemon = True
+    keep_alive_thread.start()
+
     manage_duplicate_tags(c)
+    # pinger.set_exit_condition(True)
+    global exit_condition
+    exit_condition = True
     close_remote_connection(c, cli, remote_conn)
 
 
