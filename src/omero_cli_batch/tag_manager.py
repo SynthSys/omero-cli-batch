@@ -25,7 +25,7 @@ OMERO_BIN_PATH = os.path.join("/opt", "omero", "server", "OMERO.server", "bin", 
 OMERO_BIN_PATH = os.path.join("/home", "jhay", ".conda", "envs", "omeropy", "bin", "omero")
 USERNAME = 'jhay'
 PASSWORD = ''
-OMERO_GROUP = 'system'
+OMERO_GROUP = 'rdm_scrapbook'
 
 # Retrieve annotations by associated dataset ID
 ANNOS_BY_DATASET_QUERY = "select a from Annotation a where a.id in \
@@ -259,7 +259,18 @@ def delete_duplicate_tags(duplicate_tag_ids, client):
     print(duplicate_tag_ids)
 
 
-def manage_duplicate_tags(client):
+def do_tag_merge(client, merge_tag_id, duplicate_tag_ids):
+    update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, merge_tag_id)
+    update_tag_links(duplicate_tag_ids, client, IMAGES_BY_TAG_ID_QUERY, merge_tag_id)
+
+    # ensure the target tag is not in the list to be deleted!
+    while merge_tag_id in duplicate_tag_ids:
+        duplicate_tag_ids.remove(merge_tag_id)
+
+    delete_duplicate_tags(duplicate_tag_ids, client)
+
+
+def manage_duplicate_tags(client, replacement_tag_id=None):
     params = om_sys.Parameters()
     params.map = {}
     query_filter = om_sys.Filter()
@@ -276,6 +287,7 @@ def manage_duplicate_tags(client):
 
     cur_tag_name, cur_tag_id = None, None
     duplicate_tag_ids = []
+    merge_tag_id = None
 
     for anno in anno_list:
         if isinstance(anno, model.TagAnnotationI):
@@ -291,14 +303,18 @@ def manage_duplicate_tags(client):
                 # it's a fresh tag; find all datasets for tag and update them
                 # params.map = {'aid': rtypes.rlong(cur_tag_id)}
                 if len(duplicate_tag_ids) > 0:
-                    update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, cur_tag_id)
-                    update_tag_links(duplicate_tag_ids, client, IMAGES_BY_TAG_ID_QUERY, cur_tag_id)
-                    delete_duplicate_tags(duplicate_tag_ids, client)
+                    if replacement_tag_id is None:
+                        merge_tag_id = cur_tag_id
+                    else:
+                        merge_tag_id = replacement_tag_id
+
+                    do_tag_merge(client, merge_tag_id, duplicate_tag_ids)
 
                 # reset the parameters
                 cur_tag_name = tag_name
                 cur_tag_id = tag_id
                 duplicate_tag_ids = []
+                merge_tag_id = None
             elif tag_name == cur_tag_name and tag_id != cur_tag_id:
                 # it's a duplicate tag;
                 print("duplicate: {}".format(tag_id))
@@ -307,9 +323,12 @@ def manage_duplicate_tags(client):
 
     # catch the final iteration
     if len(duplicate_tag_ids) > 0:
-        update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, cur_tag_id)
-        update_tag_links(duplicate_tag_ids, client, IMAGES_BY_TAG_ID_QUERY, cur_tag_id)
-        delete_duplicate_tags(duplicate_tag_ids, client)
+        if replacement_tag_id is None:
+            merge_tag_id = cur_tag_id
+        else:
+            merge_tag_id = replacement_tag_id
+
+        do_tag_merge(client, merge_tag_id, duplicate_tag_ids)
 
 
 def ping_session(interval, client):
@@ -327,12 +346,14 @@ def ping_session(interval, client):
 
 
 def main():
+    OMERO_SERVER = '172.17.0.3'
     USERNAME = 'root'
     PASSWORD = 'omero-root-password'
+    OMERO_GROUP = 'system'
 
-    USERNAME = 'xxxxxx'
-    PASSWORD = 'xxxxxx'
-    OMERO_GROUP = 'rdm_scrapbook'
+    # USERNAME = 'xxxxxx'
+    # PASSWORD = 'xxxxxx'
+    # OMERO_GROUP = 'rdm_scrapbook'
 
     print("hello world!")
 
