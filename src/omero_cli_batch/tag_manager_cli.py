@@ -49,7 +49,7 @@ parser.add_argument('-t', '--target-tag-id', type=int,
                     help="Omero ID of the destination tag for merging and linking objects to")
 
 parser.add_argument('-r', '--tags-to-remove', dest='tags_to_remove',
-                    nargs='+', type=str, required=False,
+                    nargs='+', type=int, required=False,
                     help="List of tag labels which are to be merged and removed on the Omero server")
 
 args = parser.parse_args()
@@ -95,21 +95,25 @@ if PASSWORD.strip() is "":
 print(USERNAME)
 print(PASSWORD)
 print(SERVER)
-# initialise the PyOmeroUploader
+print(PORT)
+# initialise the TagManager
 tag_manager = TagManager(username=USERNAME, password=PASSWORD, server=SERVER, port=PORT)
 
 if target_tag_id is not None:
     # validate args
-    if target_tag_id.strip() is "":
-        print("Data path is empty")
+    if target_tag_id <= 0:
+        print("Target tag ID is invalid")
         quit()
 
-    if tags_to_remove is not None and tags_to_remove.strip() is not '':
+    if tags_to_remove is not None and str(tags_to_remove).strip() is not '' and len(tags_to_remove) > 0:
         # pre-process the list of tag labels to be merged
+        print(tags_to_remove)
+        tags_to_remove = list(tags_to_remove)
+        print(tags_to_remove)
         print('here')
 
     # start tag merge process
-    tag_manager.merge_tags(target_tag_id, tags_to_remove, auto=False)
+    tag_manager.merge_tags(target_tag_id, tags_to_remove, auto_clean=False)
 else:
     # since a target tag ID was not given, assume this is a general cleaning job to remove all identical duplicate tags
-    tag_manager.merge_tags(target_tag_id=None, merge_tag_ids=[], auto=True)
+    tag_manager.merge_tags(target_tag_id=None, merge_tag_ids=[], auto_clean=True)

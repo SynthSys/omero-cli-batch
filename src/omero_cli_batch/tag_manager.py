@@ -28,6 +28,9 @@ PASSWORD = ''
 OMERO_GROUP = 'rdm_scrapbook'
 
 # Retrieve annotations by associated dataset ID
+ANNOS_BY_IDS_QUERY = "select a from Annotation a where a.id in :aids"
+
+# Retrieve annotations by associated dataset ID
 ANNOS_BY_DATASET_QUERY = "select a from Annotation a where a.id in \
             (select link.child.id from DatasetAnnotationLink link where link.parent.id = :did)"
 
@@ -139,7 +142,7 @@ class TagManager:
     def connect_to_remote(self, username, password):
         c = omero.client(host=self.SERVER, port=self.PORT,
                          args=["--Ice.Config=/dev/null", "--omero.debug=1"])
-        c.createSession(self.USERNAME, self.PASSWORD)
+        c.createSession(username, password)
         remote_conn = BlitzGateway(client_obj=c)
         cli = omero.cli.CLI()
         cli.loadplugins()
@@ -213,7 +216,7 @@ class TagManager:
         for tag_id in tag_id_list:
             args = [sys.executable]
             args.append(OMERO_BIN_PATH)
-            args.extend(["-s", OMERO_SERVER, "-k", session_key, "-p", str(OMERO_PORT), "-g", OMERO_GROUP])
+            args.extend(["-s", self.SERVER, "-k", session_key, "-p", str(self.PORT), "-g", OMERO_GROUP])
             args.append("delete")
             # args.extend(["-g", OMERO_GROUP])
             # Import into current Dataset
@@ -260,14 +263,15 @@ class TagManager:
         print(duplicate_tag_ids)
 
     def do_tag_merge(self, client, merge_tag_id, duplicate_tag_ids):
-        self.update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, merge_tag_id)
-        self.update_tag_links(duplicate_tag_ids, client, IMAGES_BY_TAG_ID_QUERY, merge_tag_id)
-
         # ensure the target tag is not in the list to be deleted!
         while merge_tag_id in duplicate_tag_ids:
             duplicate_tag_ids.remove(merge_tag_id)
 
-        self.delete_duplicate_tags(duplicate_tag_ids, client)
+        if len(duplicate_tag_ids) > 0:
+            self.update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, merge_tag_id)
+            self.update_tag_links(duplicate_tag_ids, client, IMAGES_BY_TAG_ID_QUERY, merge_tag_id)
+
+            self.delete_duplicate_tags(duplicate_tag_ids, client)
 
     def manage_duplicate_tags(self, client, target_tag_id=None, merge_tag_ids=None):
         params = om_sys.Parameters()
@@ -275,54 +279,68 @@ class TagManager:
         query_filter = om_sys.Filter()
         #query_filter.limit = rtypes.rint(10) # should limit and enhance performance of query, but does not seem to
         params.theFilter = query_filter
-        anno_ids_list = []
+        anno_list = []
+        print(merge_tag_ids)
 
-        if merge_tag_ids == None:
-            anno_ids_list = self.find_objects_by_query(client, DUPLICATE_TAGS_S1_QUERY, params)
-            anno_ids_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S2_QUERY, params))
-            anno_ids_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S3_QUERY, params))
-            anno_ids_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S4_QUERY, params))
-            anno_ids_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S5_QUERY, params))
-            anno_ids_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S6_QUERY, params))
+        if merge_tag_ids == None or len(merge_tag_ids) == 0:
+            anno_list = self.find_objects_by_query(client, DUPLICATE_TAGS_S1_QUERY, params)
+            anno_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S2_QUERY, params))
+            anno_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S3_QUERY, params))
+            anno_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S4_QUERY, params))
+            anno_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S5_QUERY, params))
+            anno_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S6_QUERY, params))
         else:
-            anno_ids_list = merge_tag_ids
-        # print(anno_list)
+            if len(merge_tag_ids) > 0:
+                print(merge_tag_ids)
+                print(target_tag_id)
+                all_tag_ids = merge_tag_ids
+                all_tag_ids.append(target_tag_id)
+                print(all_tag_ids)
+                anno_ids = map(rtypes.rlong, all_tag_ids)
+                print(anno_ids)
+                params.map = {'aids': rtypes.rlist(anno_ids)}
+                anno_list = self.find_objects_by_query(client, ANNOS_BY_IDS_QUERY, params)
 
         cur_tag_name, cur_tag_id = None, None
         duplicate_tag_ids = []
         merge_tag_id = None
 
-        for anno in anno_ids_list:
-            if isinstance(anno, model.TagAnnotationI):
-                tag_name = anno.getTextValue().getValue()
-                tag_id = anno.getId().getValue()
-                print(tag_name)
-                print(cur_tag_name)
-                print(tag_id)
-                print(cur_tag_id)
+        if merge_tag_ids == None or len(merge_tag_ids) == 0:
+            for anno in anno_list:
+                print(anno)
+                if isinstance(anno, model.TagAnnotationI):
+                    tag_name = anno.getTextValue().getValue()
+                    tag_id = anno.getId().getValue()
+                    print(tag_name)
+                    print(cur_tag_name)
+                    print(tag_id)
+                    print(cur_tag_id)
 
-                if tag_name != cur_tag_name and tag_id != cur_tag_id:
-                    print("changing")
-                    # it's a fresh tag; find all datasets for tag and update them
-                    # params.map = {'aid': rtypes.rlong(cur_tag_id)}
-                    if len(duplicate_tag_ids) > 0:
-                        if target_tag_id is None:
-                            merge_tag_id = cur_tag_id
-                        else:
-                            merge_tag_id = target_tag_id
+                    if tag_name != cur_tag_name and tag_id != cur_tag_id:
+                        print("changing")
+                        # it's a fresh tag; find all datasets for tag and update them
+                        # params.map = {'aid': rtypes.rlong(cur_tag_id)}
+                        if len(duplicate_tag_ids) > 0:
+                            if target_tag_id is None:
+                                merge_tag_id = cur_tag_id
+                            else:
+                                merge_tag_id = target_tag_id
 
-                        self.do_tag_merge(client, merge_tag_id, duplicate_tag_ids)
+                            self.do_tag_merge(client, merge_tag_id, duplicate_tag_ids)
 
-                    # reset the parameters
-                    cur_tag_name = tag_name
-                    cur_tag_id = tag_id
-                    duplicate_tag_ids = []
-                    merge_tag_id = None
-                elif tag_name == cur_tag_name and tag_id != cur_tag_id:
-                    # it's a duplicate tag;
-                    print("duplicate: {}".format(tag_id))
-                    if tag_id not in duplicate_tag_ids:
-                        duplicate_tag_ids.append(tag_id)
+                        # reset the parameters
+                        cur_tag_name = tag_name
+                        cur_tag_id = tag_id
+                        duplicate_tag_ids = []
+                        merge_tag_id = None
+                    elif tag_name == cur_tag_name and tag_id != cur_tag_id:
+                        # it's a duplicate tag;
+                        print("duplicate: {}".format(tag_id))
+                        if tag_id not in duplicate_tag_ids:
+                            duplicate_tag_ids.append(tag_id)
+
+        else:
+            duplicate_tag_ids = merge_tag_ids
 
         # catch the final iteration
         if len(duplicate_tag_ids) > 0:
@@ -345,17 +363,17 @@ class TagManager:
 
             time.sleep(interval)
 
-    def merge_tags(self, target_tag_id=None, merge_tag_ids=[], auto=False):
-        c, cli, remote_conn = self.connect_to_remote(USERNAME, PASSWORD)
+    def merge_tags(self, target_tag_id=None, merge_tag_ids=[], auto_clean=False):
+        c, cli, remote_conn = self.connect_to_remote(self.USERNAME, self.PASSWORD)
 
         # run session ping function as daemon to keep connection alive
         keep_alive_thread = threading.Thread(target=self.ping_session, args=([60, c]))
         keep_alive_thread.daemon = True
         keep_alive_thread.start()
 
-        if auto == True:
+        if auto_clean == True:
             self.manage_duplicate_tags(c)
-        elif auto == False and target_tag_id is not None and len(merge_tag_ids > 0):
+        elif auto_clean == False and target_tag_id is not None and len(merge_tag_ids) > 0:
             self.manage_duplicate_tags(c, target_tag_id=target_tag_id, merge_tag_ids=merge_tag_ids)
         else:
             print("No target tag or merge tags identified")
