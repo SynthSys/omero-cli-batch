@@ -10,6 +10,8 @@ import os
 import argparse
 import getpass
 
+from omero_cli_batch.tag_manager import TagManager
+
 # Instantiate the parser
 parser = argparse.ArgumentParser(description='Tag Manager CLI Application')
 
@@ -65,7 +67,7 @@ if username is not None and server is not None:
         quit()
 
     if server.strip() is "":
-        print("Dataset name is empty")
+        print("Server name is empty")
         quit()
 
     #PASSWORD = getpass.getpass('Password: '.encode('ascii'))
@@ -74,7 +76,7 @@ if username is not None and server is not None:
     # PASSWORD = u''.join(PASSWORD)
 
     USERNAME = username
-    HOST = server
+    SERVER = server
     PORT = args.port
 
 # validate args
@@ -82,7 +84,7 @@ if USERNAME.strip() is "":
     print("Username is empty")
     quit()
 
-if HOST.strip() is "":
+if SERVER.strip() is "":
     print("Target OMERO server is empty")
     quit()
 
@@ -90,8 +92,11 @@ if PASSWORD.strip() is "":
     print("Password is empty")
     quit()
 
+print(USERNAME)
+print(PASSWORD)
+print(SERVER)
 # initialise the PyOmeroUploader
-tag_manager = TagManager(username=USERNAME, password=PASSWORD, server=HOST, port=PORT)
+tag_manager = TagManager(username=USERNAME, password=PASSWORD, server=SERVER, port=PORT)
 
 if target_tag_id is not None:
     # validate args
@@ -104,7 +109,7 @@ if target_tag_id is not None:
         print('here')
 
     # start tag merge process
-    tag_manager.merge_tags(target_tag_id, tags_to_remove)
+    tag_manager.merge_tags(target_tag_id, tags_to_remove, auto=False)
 else:
     # since a target tag ID was not given, assume this is a general cleaning job to remove all identical duplicate tags
-    tag_manager.manage_duplicate_tags(c)
+    tag_manager.merge_tags(target_tag_id=None, merge_tag_ids=[], auto=True)

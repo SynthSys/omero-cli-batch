@@ -126,223 +126,243 @@ IMAGES_BY_TAG_ID_QUERY = "select i from Image i left outer join fetch i.annotati
 exit_condition = False
 
 
-def connect_to_remote(username, password):
-    c = omero.client(host=OMERO_SERVER, port=OMERO_PORT,
-                     args=["--Ice.Config=/dev/null", "--omero.debug=1"])
-    c.createSession(username, password)
-    remote_conn = BlitzGateway(client_obj=c)
-    cli = omero.cli.CLI()
-    cli.loadplugins()
-    cli.set_client(c)
-    # del os.environ["ICE_CONFIG"]
-    return c, cli, remote_conn
+class TagManager:
 
+    session_exit_condition = False
 
-def close_remote_connection(c, cli, remote_conn):
-    remote_conn.close()
-    c.closeSession()
-    cli.close()
+    def __init__(self, username, password, server, port=4064):
+        self.USERNAME = username
+        self.PASSWORD = password
+        self.SERVER = server
+        self.PORT = port
 
+    def connect_to_remote(self, username, password):
+        c = omero.client(host=self.SERVER, port=self.PORT,
+                         args=["--Ice.Config=/dev/null", "--omero.debug=1"])
+        c.createSession(self.USERNAME, self.PASSWORD)
+        remote_conn = BlitzGateway(client_obj=c)
+        cli = omero.cli.CLI()
+        cli.loadplugins()
+        cli.set_client(c)
+        # del os.environ["ICE_CONFIG"]
+        return c, cli, remote_conn
 
-def query_remote(cli):
-    # invoke login
-    # cli.invoke(["login"])
-    cli.invoke(["hql", "-q", "'select g.name from ExperimenterGroup g'"])
-    # cli.invoke(["import", "---errs", stderr.name, "---file", stdout.name, "--no-upgrade-check", path, "-d", datasetId])
+    def close_remote_connection(self, c, cli, remote_conn):
+        remote_conn.close()
+        c.closeSession()
+        cli.close()
 
+    def query_remote(self, cli):
+        # invoke login
+        # cli.invoke(["login"])
+        cli.invoke(["hql", "-q", "'select g.name from ExperimenterGroup g'"])
+        # cli.invoke(["import", "---errs", stderr.name, "---file", stdout.name, "--no-upgrade-check", path, "-d", datasetId])
 
-def find_objects_by_query(client, query, params):
-    query_service = client.getSession().getQueryService()
-    # query = "select p from Project p left outer join fetch p.datasetLinks as links left outer join fetch links.child as dataset where p.id =:pid"
+    def find_objects_by_query(self, client, query, params):
+        query_service = client.getSession().getQueryService()
+        # query = "select p from Project p left outer join fetch p.datasetLinks as links left outer join fetch links.child as dataset where p.id =:pid"
 
-    objects = query_service.findAllByQuery(query, params)
+        objects = query_service.findAllByQuery(query, params)
 
-    return objects
+        return objects
 
+    def fileno(self, file_or_fd):
+        fd = getattr(file_or_fd, 'fileno', lambda: file_or_fd)()
+        if not isinstance(fd, int):
+            raise ValueError("Expected a file (`.fileno()`) or a file descriptor")
+        return fd
 
-def fileno(file_or_fd):
-    fd = getattr(file_or_fd, 'fileno', lambda: file_or_fd)()
-    if not isinstance(fd, int):
-        raise ValueError("Expected a file (`.fileno()`) or a file descriptor")
-    return fd
+    @contextmanager
+    def stdout_redirected(self, to=os.devnull, stdout=None):
+        if stdout is None:
+            stdout = sys.stdout
 
+        stdout_fd = self.fileno(stdout)
+        # copy stdout_fd before it is overwritten
+        # NOTE: `copied`is inheritable on Windows when duplicating a standard stream
+        with os.fdopen(os.dup(stdout_fd), 'wb') as copied:
+            stdout.flush()  # flush library buffers that dup2 knows nothing about
+            try:
+                os.dup2(self.fileno(to), stdout_fd)  # $ exec >&to
+            except ValueError:  # filename
+                with open(to, 'wb') as to_file:
+                    os.dup2(to_file.fileno(), stdout_fd)  # $ exec > to
+            try:
+                yield stdout  # allow code to be run with the redirected stdout
+            finally:
+                # restore stdout to its previous value
+                # NOTE: dup2 makes stdout_fd inheritable unconditionally
+                stdout.flush()
+                os.dup2(copied.fileno(), stdout_fd)  # $ exec >&copied
 
-@contextmanager
-def stdout_redirected(to=os.devnull, stdout=None):
-    if stdout is None:
-        stdout = sys.stdout
+    def update_object_tag(self, client, objects_list, tag_id):
+        for object in objects_list:
+            link = None
+            if isinstance(object, omero.model.DatasetI):
+                link = model.DatasetAnnotationLinkI()
+                link.setParent(model.DatasetI(object.getId(), False))
+                link.setChild(model.TagAnnotationI(tag_id, False))
+            elif isinstance(object, omero.model.ImageI):
+                link = model.ImageAnnotationLinkI()
+                link.setParent(model.ImageI(object.getId(), False))
+                link.setChild(model.TagAnnotationI(tag_id, False))
 
-    stdout_fd = fileno(stdout)
-    # copy stdout_fd before it is overwritten
-    # NOTE: `copied`is inheritable on Windows when duplicating a standard stream
-    with os.fdopen(os.dup(stdout_fd), 'wb') as copied:
-        stdout.flush()  # flush library buffers that dup2 knows nothing about
-        try:
-            os.dup2(fileno(to), stdout_fd)  # $ exec >&to
-        except ValueError:  # filename
-            with open(to, 'wb') as to_file:
-                os.dup2(to_file.fileno(), stdout_fd)  # $ exec > to
-        try:
-            yield stdout  # allow code to be run with the redirected stdout
-        finally:
-            # restore stdout to its previous value
-            # NOTE: dup2 makes stdout_fd inheritable unconditionally
-            stdout.flush()
-            os.dup2(copied.fileno(), stdout_fd)  # $ exec >&copied
+            tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
 
+    def delete_tags(self, client, tag_id_list, session_key):
+        for tag_id in tag_id_list:
+            args = [sys.executable]
+            args.append(OMERO_BIN_PATH)
+            args.extend(["-s", OMERO_SERVER, "-k", session_key, "-p", str(OMERO_PORT), "-g", OMERO_GROUP])
+            args.append("delete")
+            # args.extend(["-g", OMERO_GROUP])
+            # Import into current Dataset
+            args.append(':'.join(['TagAnnotation', str(tag_id)]))
+            # args.append("--no-upgrade-check")
 
-def update_object_tag(client, objects_list, tag_id):
-    for object in objects_list:
-        link = None
-        if isinstance(object, omero.model.DatasetI):
-            link = model.DatasetAnnotationLinkI()
-            link.setParent(model.DatasetI(object.getId(), False))
-            link.setChild(model.TagAnnotationI(tag_id, False))
-        elif isinstance(object, omero.model.ImageI):
-            link = model.ImageAnnotationLinkI()
-            link.setParent(model.ImageI(object.getId(), False))
-            link.setChild(model.TagAnnotationI(tag_id, False))
+            popen = subprocess.Popen(args,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE,
+                                     universal_newlines=True)  # output as string
+            out, err = popen.communicate()
 
-        tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
+            # print "out", out
+            # print "err", err
 
+            anno_ids = []
+            rc = popen.wait()
+            if rc != 0:
+                raise Exception("import failed: [%r] %s\n%s" % (args, rc, err))
+            for x in out.split("\n"):
+                if "TagAnnotation:" in x:
+                    anno_ids.append(str(x.replace('TagAnnotation:', '')))
 
-def delete_tags(client, tag_id_list, session_key):
-    for tag_id in tag_id_list:
-        args = [sys.executable]
-        args.append(OMERO_BIN_PATH)
-        args.extend(["-s", OMERO_SERVER, "-k", session_key, "-p", str(OMERO_PORT), "-g", OMERO_GROUP])
-        args.append("delete")
-        # args.extend(["-g", OMERO_GROUP])
-        # Import into current Dataset
-        args.append(':'.join(['TagAnnotation', str(tag_id)]))
-        # args.append("--no-upgrade-check")
+    def update_tag_links(self, duplicate_tag_ids, client, query, replacement_tag_id):
+        params = om_sys.Parameters()
+        params.map = {}
 
-        popen = subprocess.Popen(args,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE,
-                                 universal_newlines=True)  # output as string
-        out, err = popen.communicate()
+        print('here')
+        print(duplicate_tag_ids)
+        anno_ids = map(rtypes.rlong, duplicate_tag_ids)
+        print(anno_ids)
+        params.map = {'aids': rtypes.rlist(anno_ids)}
+        objects_list = self.find_objects_by_query(client, query, params)
+        print("updating these objects:")
+        print(objects_list)
+        object_ids = [i.getId().getValue() for i in objects_list]
+        print(object_ids)
 
-        # print "out", out
-        # print "err", err
+        self.update_object_tag(client, objects_list, replacement_tag_id)
 
-        anno_ids = []
-        rc = popen.wait()
-        if rc != 0:
-            raise Exception("import failed: [%r] %s\n%s" % (args, rc, err))
-        for x in out.split("\n"):
-            if "TagAnnotation:" in x:
-                anno_ids.append(str(x.replace('TagAnnotation:', '')))
+    def delete_duplicate_tags(self, duplicate_tag_ids, client):
+        self.delete_tags(client, duplicate_tag_ids, client.getSessionId())
+        print("Deleting these tags:")
+        print(duplicate_tag_ids)
 
+    def do_tag_merge(self, client, merge_tag_id, duplicate_tag_ids):
+        self.update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, merge_tag_id)
+        self.update_tag_links(duplicate_tag_ids, client, IMAGES_BY_TAG_ID_QUERY, merge_tag_id)
 
-def update_tag_links(duplicate_tag_ids, client, query, replacement_tag_id):
-    params = om_sys.Parameters()
-    params.map = {}
+        # ensure the target tag is not in the list to be deleted!
+        while merge_tag_id in duplicate_tag_ids:
+            duplicate_tag_ids.remove(merge_tag_id)
 
-    print('here')
-    print(duplicate_tag_ids)
-    anno_ids = map(rtypes.rlong, duplicate_tag_ids)
-    print(anno_ids)
-    params.map = {'aids': rtypes.rlist(anno_ids)}
-    objects_list = find_objects_by_query(client, query, params)
-    print("updating these objects:")
-    print(objects_list)
-    object_ids = [i.getId().getValue() for i in objects_list]
-    print(object_ids)
+        self.delete_duplicate_tags(duplicate_tag_ids, client)
 
-    update_object_tag(client, objects_list, replacement_tag_id)
+    def manage_duplicate_tags(self, client, target_tag_id=None, merge_tag_ids=None):
+        params = om_sys.Parameters()
+        params.map = {}
+        query_filter = om_sys.Filter()
+        #query_filter.limit = rtypes.rint(10) # should limit and enhance performance of query, but does not seem to
+        params.theFilter = query_filter
+        anno_ids_list = []
 
-
-def delete_duplicate_tags(duplicate_tag_ids, client):
-    delete_tags(client, duplicate_tag_ids, client.getSessionId())
-    print("Deleting these tags:")
-    print(duplicate_tag_ids)
-
-
-def do_tag_merge(client, merge_tag_id, duplicate_tag_ids):
-    update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, merge_tag_id)
-    update_tag_links(duplicate_tag_ids, client, IMAGES_BY_TAG_ID_QUERY, merge_tag_id)
-
-    # ensure the target tag is not in the list to be deleted!
-    while merge_tag_id in duplicate_tag_ids:
-        duplicate_tag_ids.remove(merge_tag_id)
-
-    delete_duplicate_tags(duplicate_tag_ids, client)
-
-
-def manage_duplicate_tags(client, replacement_tag_id=None):
-    params = om_sys.Parameters()
-    params.map = {}
-    query_filter = om_sys.Filter()
-    #query_filter.limit = rtypes.rint(10) # should limit and enhance performance of query, but does not seem to
-    params.theFilter = query_filter
-
-    anno_list = find_objects_by_query(client, DUPLICATE_TAGS_S1_QUERY, params)
-    anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S2_QUERY, params))
-    anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S3_QUERY, params))
-    anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S4_QUERY, params))
-    anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S5_QUERY, params))
-    anno_list.extend(find_objects_by_query(client, DUPLICATE_TAGS_S6_QUERY, params))
-    # print(anno_list)
-
-    cur_tag_name, cur_tag_id = None, None
-    duplicate_tag_ids = []
-    merge_tag_id = None
-
-    for anno in anno_list:
-        if isinstance(anno, model.TagAnnotationI):
-            tag_name = anno.getTextValue().getValue()
-            tag_id = anno.getId().getValue()
-            print(tag_name)
-            print(cur_tag_name)
-            print(tag_id)
-            print(cur_tag_id)
-
-            if tag_name != cur_tag_name and tag_id != cur_tag_id:
-                print("changing")
-                # it's a fresh tag; find all datasets for tag and update them
-                # params.map = {'aid': rtypes.rlong(cur_tag_id)}
-                if len(duplicate_tag_ids) > 0:
-                    if replacement_tag_id is None:
-                        merge_tag_id = cur_tag_id
-                    else:
-                        merge_tag_id = replacement_tag_id
-
-                    do_tag_merge(client, merge_tag_id, duplicate_tag_ids)
-
-                # reset the parameters
-                cur_tag_name = tag_name
-                cur_tag_id = tag_id
-                duplicate_tag_ids = []
-                merge_tag_id = None
-            elif tag_name == cur_tag_name and tag_id != cur_tag_id:
-                # it's a duplicate tag;
-                print("duplicate: {}".format(tag_id))
-                if tag_id not in duplicate_tag_ids:
-                    duplicate_tag_ids.append(tag_id)
-
-    # catch the final iteration
-    if len(duplicate_tag_ids) > 0:
-        if replacement_tag_id is None:
-            merge_tag_id = cur_tag_id
+        if merge_tag_ids == None:
+            anno_ids_list = self.find_objects_by_query(client, DUPLICATE_TAGS_S1_QUERY, params)
+            anno_ids_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S2_QUERY, params))
+            anno_ids_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S3_QUERY, params))
+            anno_ids_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S4_QUERY, params))
+            anno_ids_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S5_QUERY, params))
+            anno_ids_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S6_QUERY, params))
         else:
-            merge_tag_id = replacement_tag_id
+            anno_ids_list = merge_tag_ids
+        # print(anno_list)
 
-        do_tag_merge(client, merge_tag_id, duplicate_tag_ids)
+        cur_tag_name, cur_tag_id = None, None
+        duplicate_tag_ids = []
+        merge_tag_id = None
 
+        for anno in anno_ids_list:
+            if isinstance(anno, model.TagAnnotationI):
+                tag_name = anno.getTextValue().getValue()
+                tag_id = anno.getId().getValue()
+                print(tag_name)
+                print(cur_tag_name)
+                print(tag_id)
+                print(cur_tag_id)
 
-def ping_session(interval, client):
-    global exit_condition
-    ping_count = 0
-    while True:
-        if exit_condition == False:
-            ping_count = ping_count + 1
-            print("pinging session: {}".format(ping_count))
-            keys = client.getInputKeys()
+                if tag_name != cur_tag_name and tag_id != cur_tag_id:
+                    print("changing")
+                    # it's a fresh tag; find all datasets for tag and update them
+                    # params.map = {'aid': rtypes.rlong(cur_tag_id)}
+                    if len(duplicate_tag_ids) > 0:
+                        if target_tag_id is None:
+                            merge_tag_id = cur_tag_id
+                        else:
+                            merge_tag_id = target_tag_id
+
+                        self.do_tag_merge(client, merge_tag_id, duplicate_tag_ids)
+
+                    # reset the parameters
+                    cur_tag_name = tag_name
+                    cur_tag_id = tag_id
+                    duplicate_tag_ids = []
+                    merge_tag_id = None
+                elif tag_name == cur_tag_name and tag_id != cur_tag_id:
+                    # it's a duplicate tag;
+                    print("duplicate: {}".format(tag_id))
+                    if tag_id not in duplicate_tag_ids:
+                        duplicate_tag_ids.append(tag_id)
+
+        # catch the final iteration
+        if len(duplicate_tag_ids) > 0:
+            if target_tag_id is None:
+                merge_tag_id = cur_tag_id
+            else:
+                merge_tag_id = target_tag_id
+
+            self.do_tag_merge(client, merge_tag_id, duplicate_tag_ids)
+
+    def ping_session(self, interval, client):
+        ping_count = 0
+        while True:
+            if self.session_exit_condition == False:
+                ping_count = ping_count + 1
+                print("pinging session: {}".format(ping_count))
+                keys = client.getInputKeys()
+            else:
+                break
+
+            time.sleep(interval)
+
+    def merge_tags(self, target_tag_id=None, merge_tag_ids=[], auto=False):
+        c, cli, remote_conn = self.connect_to_remote(USERNAME, PASSWORD)
+
+        # run session ping function as daemon to keep connection alive
+        keep_alive_thread = threading.Thread(target=self.ping_session, args=([60, c]))
+        keep_alive_thread.daemon = True
+        keep_alive_thread.start()
+
+        if auto == True:
+            self.manage_duplicate_tags(c)
+        elif auto == False and target_tag_id is not None and len(merge_tag_ids > 0):
+            self.manage_duplicate_tags(c, target_tag_id=target_tag_id, merge_tag_ids=merge_tag_ids)
         else:
-            break
+            print("No target tag or merge tags identified")
 
-        time.sleep(interval)
+        # global exit_condition
+        self.session_exit_condition = True
+        self.close_remote_connection(c, cli, remote_conn)
 
 
 def main():
@@ -357,18 +377,19 @@ def main():
 
     print("hello world!")
 
-    c, cli, remote_conn = connect_to_remote(USERNAME, PASSWORD)
+    tag_manager = TagManager(username=USERNAME, password=PASSWORD, server=OMERO_SERVER)
+    c, cli, remote_conn = tag_manager.connect_to_remote(USERNAME, PASSWORD)
 
     # run session ping function as daemon to keep connection alive
-    keep_alive_thread = threading.Thread(target=ping_session, args=([60, c]))
+    keep_alive_thread = threading.Thread(target=tag_manager.ping_session, args=([60, c]))
     keep_alive_thread.daemon = True
     keep_alive_thread.start()
 
-    manage_duplicate_tags(c)
+    tag_manager.manage_duplicate_tags(c)
 
-    global exit_condition
-    exit_condition = True
-    close_remote_connection(c, cli, remote_conn)
+    # global exit_condition
+    tag_manager.session_exit_condition = True
+    tag_manager.close_remote_connection(c, cli, remote_conn)
 
 
 if __name__ == "__main__":
