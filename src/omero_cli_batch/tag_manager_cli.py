@@ -15,24 +15,28 @@ from omero_cli_batch.tag_manager import TagManager
 
 '''
 # Examples of usage
+$ cd src
 
 ## merge all datasets/images associated with tags withs labels 'arch%' and 'amoeb%' into one existing tag labelled 
 ## 'amoebozoa'
-python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -l amoebozoa -e arch% amoeb% -r 245 253 -o 4064
+$ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -l amoebozoa -e arch% amoeb% -r 245 253 -o 4064
 
 ## merge all datasets/images associated with tags withs labels 'arch%' and 'amoeb%' and tags with IDs 245 and 253 
 ## into one existing tag with ID 233
-python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -l amoebozoa -e arch% amoeb% -o 4064
+$ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -l amoebozoa -e arch% amoeb% -o 4064
+
+## merge all datasets/images associated with tags with labels 'cell wall' into one existing tag with label 'cell'
+$ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -l cell -e "cell wall" -o 4064
 
 ## error: Cannot specify both target tag ID and target tag label; use one or the other
-python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -l amoebozoa -e arch% amoeb% -o 4064
+$ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -l amoebozoa -e arch% amoeb% -o 4064
 
 ## merge all datasets/images associated with tags withs labels 'arch%' and 'amoeb%' into one existing tag with ID 233
-python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -e arch% amoeb% -o 4064
+$ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -e arch% amoeb% -o 4064
 
 ## merge all datasets/images associated with tags withs labels 'arch%' and 'amoeb%' and tags with IDs 245 and 253 
 ## into one existing tag with ID 233
-python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -e arch% amoeb% -r 245 253 -o 4064
+$ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -e arch% amoeb% -r 245 253 -o 4064
 '''
 
 # Instantiate the parser
@@ -160,6 +164,10 @@ if target_tag_id is not None or target_tag_label is not None:
             len(tag_labels_to_remove) > 0:
         # pre-process the list of tag labels to be merged
         tag_annos = tag_manager.get_tag_annos_for_labels(tag_labels_to_remove)
+
+        if tags_to_remove is None:
+            tag_ids_to_remove = []
+
         tag_ids_to_remove.extend(list(int(anno.getId().getValue()) for anno in tag_annos))
 
     # ensure that the target_tag_id is not present in the tags_to_remove
