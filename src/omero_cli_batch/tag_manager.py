@@ -31,6 +31,10 @@ OMERO_GROUP = 'rdm_scrapbook'
 ANNOS_BY_IDS_QUERY = "select a from Annotation a where a.id in :aids"
 
 # Retrieve annotations by associated dataset ID
+TAG_ANNOS_BY_TEXT_VALUES_QUERY = "select a from Annotation a where a.textValue like any (:anno_text_list)"
+# select a.* from public.annotation a where a.textValue like any (array['amoeb%', 'cell%']);
+
+# Retrieve annotations by associated dataset ID
 ANNOS_BY_DATASET_QUERY = "select a from Annotation a where a.id in \
             (select link.child.id from DatasetAnnotationLink link where link.parent.id = :did)"
 
@@ -381,6 +385,19 @@ class TagManager:
         # global exit_condition
         self.session_exit_condition = True
         self.close_remote_connection(c, cli, remote_conn)
+
+    def get_tag_annos_for_labels(self, tag_labels=None):
+        c, cli, remote_conn = self.connect_to_remote(self.USERNAME, self.PASSWORD)
+        params = om_sys.Parameters()
+        tag_rstr_labels = map(rtypes.rstring, tag_labels)
+        print(tag_labels)
+
+        params.map = {'anno_text_list': rtypes.rlist(tag_rstr_labels)}
+        anno_list = self.find_objects_by_query(c, TAG_ANNOS_BY_TEXT_VALUES_QUERY, params)
+
+        self.session_exit_condition = True
+        self.close_remote_connection(c, cli, remote_conn)
+        return anno_list
 
 
 def main():
