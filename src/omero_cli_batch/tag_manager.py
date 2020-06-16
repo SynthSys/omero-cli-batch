@@ -31,7 +31,7 @@ OMERO_GROUP = 'rdm_scrapbook'
 ANNOS_BY_IDS_QUERY = "select a from Annotation a where a.id in :aids"
 
 # Retrieve annotations by associated dataset ID
-TAG_ANNOS_BY_TEXT_VALUES_QUERY = "select a from Annotation a where a.textValue like any (:anno_text_list)"
+TAG_ANNOS_BY_TEXT_VALUES_QUERY = "select a from Annotation a where a.textValue like :anno_text"
 # select a.* from public.annotation a where a.textValue like any (array['amoeb%', 'cell%']);
 
 # Retrieve annotations by associated dataset ID
@@ -205,16 +205,24 @@ class TagManager:
     def update_object_tag(self, client, objects_list, tag_id):
         for object in objects_list:
             link = None
+            print(tag_id)
             if isinstance(object, omero.model.DatasetI):
+                print(object.getId())
                 link = model.DatasetAnnotationLinkI()
                 link.setParent(model.DatasetI(object.getId(), False))
                 link.setChild(model.TagAnnotationI(tag_id, False))
             elif isinstance(object, omero.model.ImageI):
+                print(object.getId())
                 link = model.ImageAnnotationLinkI()
                 link.setParent(model.ImageI(object.getId(), False))
                 link.setChild(model.TagAnnotationI(tag_id, False))
 
-            tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
+            try:
+                tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
+            except omero.ValidationException:
+                # catch error if there's already a link between objects; this happens if the objects
+                # have been retrieved by tag label text, rather than by ID, for example
+                print('Error linking tag ID {} and object ID {}'.format(tag_id, object.getId().getValue()))
 
     def delete_tags(self, client, tag_id_list, session_key):
         for tag_id in tag_id_list:
@@ -387,16 +395,20 @@ class TagManager:
         self.close_remote_connection(c, cli, remote_conn)
 
     def get_tag_annos_for_labels(self, tag_labels=None):
-        c, cli, remote_conn = self.connect_to_remote(self.USERNAME, self.PASSWORD)
-        params = om_sys.Parameters()
-        tag_rstr_labels = map(rtypes.rstring, tag_labels)
-        print(tag_labels)
+        anno_list = []
+        if tag_labels is not None:
+            c, cli, remote_conn = self.connect_to_remote(self.USERNAME, self.PASSWORD)
+            params = om_sys.Parameters()
+            print(tag_labels)
 
-        params.map = {'anno_text_list': rtypes.rlist(tag_rstr_labels)}
-        anno_list = self.find_objects_by_query(c, TAG_ANNOS_BY_TEXT_VALUES_QUERY, params)
+            for tag_label in tag_labels:
+                tag_rstr_label = rtypes.rstring(tag_label)
+                params.map = {'anno_text': rtypes.rlist(tag_rstr_label)}
+                anno_list.extend(self.find_objects_by_query(c, TAG_ANNOS_BY_TEXT_VALUES_QUERY, params))
 
-        self.session_exit_condition = True
-        self.close_remote_connection(c, cli, remote_conn)
+            self.session_exit_condition = True
+            self.close_remote_connection(c, cli, remote_conn)
+
         return anno_list
 
 

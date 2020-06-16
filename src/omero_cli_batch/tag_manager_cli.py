@@ -12,6 +12,29 @@ import getpass
 
 from omero_cli_batch.tag_manager import TagManager
 
+
+'''
+# Examples of usage
+
+## merge all datasets/images associated with tags withs labels 'arch%' and 'amoeb%' into one existing tag labelled 
+## 'amoebozoa'
+python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -l amoebozoa -e arch% amoeb% -r 245 253 -o 4064
+
+## merge all datasets/images associated with tags withs labels 'arch%' and 'amoeb%' and tags with IDs 245 and 253 
+## into one existing tag with ID 233
+python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -l amoebozoa -e arch% amoeb% -o 4064
+
+## error: Cannot specify both target tag ID and target tag label; use one or the other
+python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -l amoebozoa -e arch% amoeb% -o 4064
+
+## merge all datasets/images associated with tags withs labels 'arch%' and 'amoeb%' into one existing tag with ID 233
+python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -e arch% amoeb% -o 4064
+
+## merge all datasets/images associated with tags withs labels 'arch%' and 'amoeb%' and tags with IDs 245 and 253 
+## into one existing tag with ID 233
+python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -e arch% amoeb% -r 245 253 -o 4064
+'''
+
 # Instantiate the parser
 parser = argparse.ArgumentParser(description='Tag Manager CLI Application')
 
@@ -124,36 +147,29 @@ if target_tag_id is not None or target_tag_label is not None:
             print("Target tag label is empty")
             quit()
         else:
-            import ast
-            print(target_tag_label)
-            # tag_annos = tag_manager.get_tag_annos_for_labels(list(ast.literal_eval(str(target_tag_label))))
             tag_annos = tag_manager.get_tag_annos_for_labels([str(target_tag_label)])
-            print(tag_annos)
             # pick the tag annotation with the lowest ID as the default target annotation object,
             # in case there are multiple tags with the same label
-            target_tag_id = min(anno.getId().getValue() for anno in tag_annos)
-            print("target tag id: {}".format(target_tag_id))
+            target_tag_id = int(min(anno.getId().getValue() for anno in tag_annos))
 
     if tags_to_remove is not None and str(tags_to_remove).strip() is not '' and len(tags_to_remove) > 0:
-        # pre-process the list of tag labels to be merged
-        print(tags_to_remove)
-        tags_to_remove = list(tags_to_remove)
-        print(tags_to_remove)
-        print('here')
+        # pre-process the list of tag IDs to be merged
+        tag_ids_to_remove = list(tags_to_remove)
 
     if tag_labels_to_remove is not None and str(tag_labels_to_remove).strip() is not '' and \
             len(tag_labels_to_remove) > 0:
         # pre-process the list of tag labels to be merged
-        print(tag_labels_to_remove)
-        # tag_labels_to_remove = tag_labels_to_remove
         tag_annos = tag_manager.get_tag_annos_for_labels(tag_labels_to_remove)
-        print(tag_annos)
-        print('here')
-        tags_to_remove = list(anno.getId().getValue() for anno in tag_annos)
-        print('tags to remove: {}'.format(tags_to_remove))
+        tag_ids_to_remove.extend(list(int(anno.getId().getValue()) for anno in tag_annos))
 
+    # ensure that the target_tag_id is not present in the tags_to_remove
+    while target_tag_id in tag_ids_to_remove:
+        tag_ids_to_remove.remove(target_tag_id)
+
+    print('tags to remove: {}'.format(tag_ids_to_remove))
+    print("target tag id: {}".format(target_tag_id))
     # start tag merge process
-    # tag_manager.merge_tags(target_tag_id, tags_to_remove, auto_clean=False)
+    tag_manager.merge_tags(target_tag_id, tags_to_remove, auto_clean=False)
 else:
     # since a target tag ID was not given, assume this is a general cleaning job to remove all identical duplicate tags
     tag_manager.merge_tags(target_tag_id=None, merge_tag_ids=[], auto_clean=True)
