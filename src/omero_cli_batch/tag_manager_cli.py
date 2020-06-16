@@ -31,12 +31,17 @@ $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -l cell -e "ce
 ## error: Cannot specify both target tag ID and target tag label; use one or the other
 $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -l amoebozoa -e arch% amoeb% -o 4064
 
-## merge all datasets/images associated with tags withs labels 'arch%' and 'amoeb%' into one existing tag with ID 233
+## merge all datasets/images associated with tags with labels 'arch%' and 'amoeb%' into one existing tag with ID 233
 $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -e arch% amoeb% -o 4064
 
-## merge all datasets/images associated with tags withs labels 'arch%' and 'amoeb%' and tags with IDs 245 and 253 
+## merge all datasets/images associated with tags with labels 'arch%' and 'amoeb%' and tags with IDs 245 and 253 
 ## into one existing tag with ID 233
 $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -e arch% amoeb% -r 245 253 -o 4064
+
+## merge all datasets/images associated with tags with label 'Screaming "HAHA" Hairy l'Armadill%' 
+## into one existing tag with ID 233
+$ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 \ 
+    -e "Screaming \"HAHA\" Hairy l'Armadill%"% -o 4064
 '''
 
 # Instantiate the parser
