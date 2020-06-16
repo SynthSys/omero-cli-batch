@@ -7,6 +7,7 @@ import getpass
 import subprocess
 import threading
 import time
+import logging
 
 import omero
 import omero.cli
@@ -130,7 +131,16 @@ DATASETS_BY_TAG_ID_QUERY = "select d from Dataset d left outer join fetch d.anno
 IMAGES_BY_TAG_ID_QUERY = "select i from Image i left outer join fetch i.annotationLinks as alinks \
              left outer join fetch alinks.child as annotation where alinks.child.id in :aids"
 
-exit_condition = False
+fmtstr = " Name: %(asctime)s: (%(filename)s): %(levelname)s: %(funcName)s Line: %(lineno)d - %(message)s"
+datestr = "%m/%d/%Y %I:%M:%S %p "
+# basic logging config
+logging.basicConfig(
+    filename="./tag_manager_output.log",
+    level=logging.DEBUG,
+    filemode="w",
+    format=fmtstr,
+    datefmt=datestr,
+)
 
 
 class TagManager:
@@ -205,14 +215,14 @@ class TagManager:
     def update_object_tag(self, client, objects_list, tag_id):
         for object in objects_list:
             link = None
-            print(tag_id)
+            logging.debug("Tag ID to link object to: {}".format(tag_id))
             if isinstance(object, omero.model.DatasetI):
-                print(object.getId())
+                logging.debug("Object ID to link tag to: {}".format(object.getId()))
                 link = model.DatasetAnnotationLinkI()
                 link.setParent(model.DatasetI(object.getId(), False))
                 link.setChild(model.TagAnnotationI(tag_id, False))
             elif isinstance(object, omero.model.ImageI):
-                print(object.getId())
+                logging.debug("Object ID to link tag to: {}".format(object.getId()))
                 link = model.ImageAnnotationLinkI()
                 link.setParent(model.ImageI(object.getId(), False))
                 link.setChild(model.TagAnnotationI(tag_id, False))
@@ -224,6 +234,8 @@ class TagManager:
                 # have been retrieved by tag label text, rather than by ID, for example
                 print('Error linking tag ID {} and object ID {}; probably already linked'
                       .format(tag_id, object.getId().getValue()))
+                logging.error('Error linking tag ID {} and object ID {}; probably already linked'
+                              .format(tag_id, object.getId().getValue()))
 
     def delete_tags(self, client, tag_id_list, session_key):
         for tag_id in tag_id_list:
@@ -257,25 +269,21 @@ class TagManager:
         params = om_sys.Parameters()
         params.map = {}
 
-        print('here')
-        print(duplicate_tag_ids)
         anno_ids = map(rtypes.rlong, duplicate_tag_ids)
-        print(anno_ids)
         params.map = {'aids': rtypes.rlist(anno_ids)}
         objects_list = self.find_objects_by_query(client, query, params)
-        print("updating these objects:")
+
         object_ids = [i.getId().getValue() for i in objects_list]
-        print(object_ids)
+        logging.info("updating these objects: {}".format(object_ids))
 
         self.update_object_tag(client, objects_list, replacement_tag_id)
 
     def delete_duplicate_tags(self, duplicate_tag_ids, client):
         self.delete_tags(client, duplicate_tag_ids, client.getSessionId())
-        print("Deleting these tags:")
-        print(duplicate_tag_ids)
+        print("Deleting these tags: {}".format(duplicate_tag_ids))
+        logging.info("Deleting these tags: {}".format(duplicate_tag_ids))
 
     def do_tag_merge(self, client, merge_tag_id, duplicate_tag_ids):
-        print(duplicate_tag_ids)
         # ensure the target tag is not in the list to be deleted!
         while merge_tag_id in duplicate_tag_ids:
             duplicate_tag_ids.remove(merge_tag_id)
@@ -293,7 +301,6 @@ class TagManager:
         #query_filter.limit = rtypes.rint(10) # should limit and enhance performance of query, but does not seem to
         params.theFilter = query_filter
         anno_list = []
-        print(merge_tag_ids)
 
         if merge_tag_ids == None or len(merge_tag_ids) == 0:
             anno_list = self.find_objects_by_query(client, DUPLICATE_TAGS_S1_QUERY, params)
@@ -304,13 +311,9 @@ class TagManager:
             anno_list.extend(self.find_objects_by_query(client, DUPLICATE_TAGS_S6_QUERY, params))
         else:
             if len(merge_tag_ids) > 0:
-                print(merge_tag_ids)
-                print(target_tag_id)
                 all_tag_ids = merge_tag_ids
                 all_tag_ids.append(target_tag_id)
-                print(all_tag_ids)
                 anno_ids = map(rtypes.rlong, all_tag_ids)
-                print(anno_ids)
                 params.map = {'aids': rtypes.rlist(anno_ids)}
                 anno_list = self.find_objects_by_query(client, ANNOS_BY_IDS_QUERY, params)
 
@@ -323,13 +326,8 @@ class TagManager:
                 if isinstance(anno, model.TagAnnotationI):
                     tag_name = anno.getTextValue().getValue()
                     tag_id = anno.getId().getValue()
-                    print(tag_name)
-                    print(cur_tag_name)
-                    print(tag_id)
-                    print(cur_tag_id)
 
                     if tag_name != cur_tag_name and tag_id != cur_tag_id:
-                        print("changing")
                         # it's a fresh tag; find all datasets for tag and update them
                         # params.map = {'aid': rtypes.rlong(cur_tag_id)}
                         if len(duplicate_tag_ids) > 0:
@@ -347,10 +345,8 @@ class TagManager:
                         merge_tag_id = None
                     elif tag_name == cur_tag_name and tag_id != cur_tag_id:
                         # it's a duplicate tag;
-                        print("duplicate: {}".format(tag_id))
                         if tag_id not in duplicate_tag_ids:
                             duplicate_tag_ids.append(tag_id)
-
         else:
             duplicate_tag_ids = merge_tag_ids
 
@@ -368,7 +364,7 @@ class TagManager:
         while True:
             if self.session_exit_condition == False:
                 ping_count = ping_count + 1
-                print("pinging session: {}".format(ping_count))
+                logging.info("pinging session: {}".format(ping_count))
                 keys = client.getInputKeys()
             else:
                 break
@@ -389,6 +385,7 @@ class TagManager:
             self.manage_duplicate_tags(c, target_tag_id=target_tag_id, merge_tag_ids=merge_tag_ids)
         else:
             print("No target tag or merge tags identified")
+            logging.info("No target tag or merge tags identified")
 
         # global exit_condition
         self.session_exit_condition = True
@@ -399,7 +396,6 @@ class TagManager:
         if tag_labels is not None:
             c, cli, remote_conn = self.connect_to_remote(self.USERNAME, self.PASSWORD)
             params = om_sys.Parameters()
-            print(tag_labels)
 
             for tag_label in tag_labels:
                 tag_rstr_label = rtypes.rstring(tag_label)
