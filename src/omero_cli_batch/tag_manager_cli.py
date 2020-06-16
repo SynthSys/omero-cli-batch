@@ -169,7 +169,7 @@ if target_tag_id is not None or target_tag_label is not None:
     print('tags to remove: {}'.format(tag_ids_to_remove))
     print("target tag id: {}".format(target_tag_id))
     # start tag merge process
-    tag_manager.merge_tags(target_tag_id, tags_to_remove, auto_clean=False)
+    tag_manager.merge_tags(target_tag_id, tag_ids_to_remove, auto_clean=False)
 else:
     # since a target tag ID was not given, assume this is a general cleaning job to remove all identical duplicate tags
     tag_manager.merge_tags(target_tag_id=None, merge_tag_ids=[], auto_clean=True)

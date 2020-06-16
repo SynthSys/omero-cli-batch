@@ -222,7 +222,8 @@ class TagManager:
             except omero.ValidationException:
                 # catch error if there's already a link between objects; this happens if the objects
                 # have been retrieved by tag label text, rather than by ID, for example
-                print('Error linking tag ID {} and object ID {}'.format(tag_id, object.getId().getValue()))
+                print('Error linking tag ID {} and object ID {}; probably already linked'
+                      .format(tag_id, object.getId().getValue()))
 
     def delete_tags(self, client, tag_id_list, session_key):
         for tag_id in tag_id_list:
@@ -263,7 +264,6 @@ class TagManager:
         params.map = {'aids': rtypes.rlist(anno_ids)}
         objects_list = self.find_objects_by_query(client, query, params)
         print("updating these objects:")
-        print(objects_list)
         object_ids = [i.getId().getValue() for i in objects_list]
         print(object_ids)
 
@@ -275,6 +275,7 @@ class TagManager:
         print(duplicate_tag_ids)
 
     def do_tag_merge(self, client, merge_tag_id, duplicate_tag_ids):
+        print(duplicate_tag_ids)
         # ensure the target tag is not in the list to be deleted!
         while merge_tag_id in duplicate_tag_ids:
             duplicate_tag_ids.remove(merge_tag_id)
@@ -319,7 +320,6 @@ class TagManager:
 
         if merge_tag_ids == None or len(merge_tag_ids) == 0:
             for anno in anno_list:
-                print(anno)
                 if isinstance(anno, model.TagAnnotationI):
                     tag_name = anno.getTextValue().getValue()
                     tag_id = anno.getId().getValue()
