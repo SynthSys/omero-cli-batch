@@ -42,6 +42,19 @@ present in the file system. The best way to achieve this is by deploying
 the OMERO server Docker images (https://hub.docker.com/r/openmicroscopy/omero-server)
 and running them with the data directory mounted to the container.
 
+You can use the included requirements files to create the required Python/Conda
+virtual environments as follows:
+
+```shell script
+# Conda
+$ conda create --name omero_cli_batch --file requirements_conda.txt
+
+# Pip
+$ python -m venv /path/to/omero_cli_batch
+$ source /path/to/omero_cli_batch/bin/activate
+$ pip install -r requirements.txt
+```
+
 ## Uploader
 
 ### Python 2 - python-omero 5.4.10
