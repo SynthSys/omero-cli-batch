@@ -212,30 +212,34 @@ class TagManager:
                 stdout.flush()
                 os.dup2(copied.fileno(), stdout_fd)  # $ exec >&copied
 
-    def update_object_tag(self, client, objects_list, tag_id):
+    def update_object_tag(self, client, objects_list, tag_id, dry_run=False):
         for object in objects_list:
             link = None
             logging.debug("Tag ID to link object to: {}".format(tag_id))
+            print("Tag ID to link object to: {}".format(tag_id))
             if isinstance(object, omero.model.DatasetI):
-                logging.debug("Object ID to link tag to: {}".format(object.getId()))
+                logging.debug("Object ID to link tag to: {}".format(object.getId().getValue()))
+                print("Object ID to link tag to: {}".format(object.getId().getValue()))
                 link = model.DatasetAnnotationLinkI()
                 link.setParent(model.DatasetI(object.getId(), False))
                 link.setChild(model.TagAnnotationI(tag_id, False))
             elif isinstance(object, omero.model.ImageI):
-                logging.debug("Object ID to link tag to: {}".format(object.getId()))
+                logging.debug("Object ID to link tag to: {}".format(object.getId().getValue()))
+                print("Object ID to link tag to: {}".format(object.getId().getValue()))
                 link = model.ImageAnnotationLinkI()
                 link.setParent(model.ImageI(object.getId(), False))
                 link.setChild(model.TagAnnotationI(tag_id, False))
 
-            try:
-                tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
-            except omero.ValidationException:
-                # catch error if there's already a link between objects; this happens if the objects
-                # have been retrieved by tag label text, rather than by ID, for example
-                print('Error linking tag ID {} and object ID {}; probably already linked'
-                      .format(tag_id, object.getId().getValue()))
-                logging.error('Error linking tag ID {} and object ID {}; probably already linked'
-                              .format(tag_id, object.getId().getValue()))
+            if dry_run == False:
+                try:
+                    tag_link = client.getSession().getUpdateService().saveAndReturnObject(link)
+                except omero.ValidationException:
+                    # catch error if there's already a link between objects; this happens if the objects
+                    # have been retrieved by tag label text, rather than by ID, for example
+                    print('Error linking tag ID {} and object ID {}; probably already linked'
+                          .format(tag_id, object.getId().getValue()))
+                    logging.error('Error linking tag ID {} and object ID {}; probably already linked'
+                                  .format(tag_id, object.getId().getValue()))
 
     def delete_tags(self, client, tag_id_list, session_key):
         for tag_id in tag_id_list:
@@ -265,7 +269,7 @@ class TagManager:
                 if "TagAnnotation:" in x:
                     anno_ids.append(str(x.replace('TagAnnotation:', '')))
 
-    def update_tag_links(self, duplicate_tag_ids, client, query, replacement_tag_id):
+    def update_tag_links(self, duplicate_tag_ids, client, query, replacement_tag_id, dry_run=False):
         params = om_sys.Parameters()
         params.map = {}
 
@@ -276,25 +280,27 @@ class TagManager:
         object_ids = [i.getId().getValue() for i in objects_list]
         logging.info("updating these objects: {}".format(object_ids))
 
-        self.update_object_tag(client, objects_list, replacement_tag_id)
+        self.update_object_tag(client, objects_list, replacement_tag_id, dry_run=dry_run)
 
-    def delete_duplicate_tags(self, duplicate_tag_ids, client):
-        self.delete_tags(client, duplicate_tag_ids, client.getSessionId())
+    def delete_duplicate_tags(self, duplicate_tag_ids, client, dry_run=False):
+        if dry_run == False:
+            self.delete_tags(client, duplicate_tag_ids, client.getSessionId())
+
         print("Deleting these tags: {}".format(duplicate_tag_ids))
         logging.info("Deleting these tags: {}".format(duplicate_tag_ids))
 
-    def do_tag_merge(self, client, merge_tag_id, duplicate_tag_ids):
+    def do_tag_merge(self, client, merge_tag_id, duplicate_tag_ids, dry_run=False):
         # ensure the target tag is not in the list to be deleted!
         while merge_tag_id in duplicate_tag_ids:
             duplicate_tag_ids.remove(merge_tag_id)
 
         if len(duplicate_tag_ids) > 0:
-            self.update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, merge_tag_id)
-            self.update_tag_links(duplicate_tag_ids, client, IMAGES_BY_TAG_ID_QUERY, merge_tag_id)
+            self.update_tag_links(duplicate_tag_ids, client, DATASETS_BY_TAG_ID_QUERY, merge_tag_id, dry_run=dry_run)
+            self.update_tag_links(duplicate_tag_ids, client, IMAGES_BY_TAG_ID_QUERY, merge_tag_id, dry_run=dry_run)
 
-            self.delete_duplicate_tags(duplicate_tag_ids, client)
+            self.delete_duplicate_tags(duplicate_tag_ids, client, dry_run=dry_run)
 
-    def manage_duplicate_tags(self, client, target_tag_id=None, merge_tag_ids=None):
+    def manage_duplicate_tags(self, client, target_tag_id=None, merge_tag_ids=None, dry_run=False):
         params = om_sys.Parameters()
         params.map = {}
         query_filter = om_sys.Filter()
@@ -336,7 +342,7 @@ class TagManager:
                             else:
                                 merge_tag_id = target_tag_id
 
-                            self.do_tag_merge(client, merge_tag_id, duplicate_tag_ids)
+                            self.do_tag_merge(client, merge_tag_id, duplicate_tag_ids, dry_run=dry_run)
 
                         # reset the parameters
                         cur_tag_name = tag_name
@@ -357,7 +363,7 @@ class TagManager:
             else:
                 merge_tag_id = target_tag_id
 
-            self.do_tag_merge(client, merge_tag_id, duplicate_tag_ids)
+            self.do_tag_merge(client, merge_tag_id, duplicate_tag_ids, dry_run=dry_run)
 
     def ping_session(self, interval, client):
         ping_count = 0
@@ -371,7 +377,7 @@ class TagManager:
 
             time.sleep(interval)
 
-    def merge_tags(self, target_tag_id=None, merge_tag_ids=[], auto_clean=False):
+    def merge_tags(self, target_tag_id=None, merge_tag_ids=[], auto_clean=False, dry_run=False):
         c, cli, remote_conn = self.connect_to_remote(self.USERNAME, self.PASSWORD)
 
         # run session ping function as daemon to keep connection alive
@@ -380,9 +386,9 @@ class TagManager:
         keep_alive_thread.start()
 
         if auto_clean == True:
-            self.manage_duplicate_tags(c)
+            self.manage_duplicate_tags(c, dry_run=dry_run)
         elif auto_clean == False and target_tag_id is not None and len(merge_tag_ids) > 0:
-            self.manage_duplicate_tags(c, target_tag_id=target_tag_id, merge_tag_ids=merge_tag_ids)
+            self.manage_duplicate_tags(c, target_tag_id=target_tag_id, merge_tag_ids=merge_tag_ids, dry_run=dry_run)
         else:
             print("No target tag or merge tags identified")
             logging.info("No target tag or merge tags identified")
@@ -428,7 +434,7 @@ def main():
     keep_alive_thread.daemon = True
     keep_alive_thread.start()
 
-    tag_manager.manage_duplicate_tags(c)
+    tag_manager.manage_duplicate_tags(c, dry_run=True)
 
     # global exit_condition
     tag_manager.session_exit_condition = True

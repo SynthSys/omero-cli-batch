@@ -92,6 +92,11 @@ parser.add_argument('-r', '--tags-to-remove', dest='tags_to_remove',
                     nargs='+', type=int, required=False,
                     help="List of tag labels which are to be merged and removed on the Omero server")
 
+parser.add_argument('-d', '--dry-run', action='store_true',
+                    dest='dry_run', required=False,
+                    help="Commands the tag manager to report instructed changes rather than actually perform the merge \
+                        and tag deletion process")
+
 args = parser.parse_args()
 target_tag_id = args.target_tag_id
 tags_to_remove = args.tags_to_remove
@@ -141,6 +146,11 @@ print(PORT)
 # initialise the TagManager
 tag_manager = TagManager(username=USERNAME, password=PASSWORD, server=SERVER, port=PORT)
 
+dry_run = False
+
+if args.dry_run is not None:
+    dry_run = args.dry_run
+
 if target_tag_id is not None or target_tag_label is not None:
     # validate args
     if target_tag_id is not None and target_tag_label is not None:
@@ -181,8 +191,9 @@ if target_tag_id is not None or target_tag_label is not None:
 
     print('tags to remove: {}'.format(tag_ids_to_remove))
     print("target tag id: {}".format(target_tag_id))
+
     # start tag merge process
-    tag_manager.merge_tags(target_tag_id, tag_ids_to_remove, auto_clean=False)
+    tag_manager.merge_tags(target_tag_id, tag_ids_to_remove, auto_clean=False, dry_run=dry_run)
 else:
     # since a target tag ID was not given, assume this is a general cleaning job to remove all identical duplicate tags
-    tag_manager.merge_tags(target_tag_id=None, merge_tag_ids=[], auto_clean=True)
+    tag_manager.merge_tags(target_tag_id=None, merge_tag_ids=[], auto_clean=True, dry_run=dry_run)
