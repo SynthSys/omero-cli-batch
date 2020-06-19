@@ -215,17 +215,23 @@ class TagManager:
     def update_object_tag(self, client, objects_list, tag_id, dry_run=False):
         for object in objects_list:
             link = None
-            logging.debug("Tag ID to link object to: {}".format(tag_id))
-            print("Tag ID to link object to: {}".format(tag_id))
+            output_str = "Tag ID to link object to: {}".format(tag_id)
+            logging.info(output_str)
+            print(output_str)
+
             if isinstance(object, omero.model.DatasetI):
-                logging.debug("Object ID to link tag to: {}".format(object.getId().getValue()))
-                print("Object ID to link tag to: {}".format(object.getId().getValue()))
+                output_str = "Dataset object ID to link tag to: {}".format(object.getId().getValue())
+                logging.info(output_str)
+                print(output_str)
+
                 link = model.DatasetAnnotationLinkI()
                 link.setParent(model.DatasetI(object.getId(), False))
                 link.setChild(model.TagAnnotationI(tag_id, False))
             elif isinstance(object, omero.model.ImageI):
-                logging.debug("Object ID to link tag to: {}".format(object.getId().getValue()))
-                print("Object ID to link tag to: {}".format(object.getId().getValue()))
+                output_str = "Image object ID to link tag to: {}".format(object.getId().getValue())
+                logging.info(output_str)
+                print(output_str)
+
                 link = model.ImageAnnotationLinkI()
                 link.setParent(model.ImageI(object.getId(), False))
                 link.setChild(model.TagAnnotationI(tag_id, False))
