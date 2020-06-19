@@ -38,10 +38,10 @@ $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -e arch
 ## into one existing tag with ID 233
 $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 -e arch% amoeb% -r 245 253 -o 4064
 
-## merge all datasets/images associated with tags with label 'Screaming "HAHA" Hairy l'Armadill%' 
+## merge all datasets/images associated with tags with label '"Screaming" Hairy l'éléphan%' 
 ## into one existing tag with ID 233
 $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 \ 
-    -e "Screaming \"HAHA\" Hairy l'Armadill%"% -o 4064
+    -e "\"Screaming\" Hairy l'éléphan%" -o 4064
 '''
 
 # Instantiate the parser
