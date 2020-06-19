@@ -180,6 +180,11 @@ $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -l amoebozoa \
 $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -l cell \
   -e "cell wall" -o 4064
 
+# Dry Run: merge all datasets/images associated with tags with labels 'cell wall' 
+# into one existing tag with label 'cell'
+$ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -l cell \
+  -e "cell wall" -o 4064 -d
+
 # error: Cannot specify both target tag ID and target tag label; use 
 # one or the other
 $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 \
@@ -194,6 +199,11 @@ $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 \
 # and 'amoeb%' and tags with IDs 245 and 253 into one existing tag with ID 233
 $ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 \
   -e arch% amoeb% -r 245 253 -o 4064
+
+# Dry Run: merge all datasets/images associated with tags with labels 'arch%' 
+# and 'amoeb%' and tags with IDs 245 and 253 into one existing tag with ID 233
+$ python -m omero_cli_batch.tag_manager_cli -u root -s 172.17.0.3 -i 233 \
+  -e arch% amoeb% -r 245 253 -o 4064 -d
 
 # merge all datasets/images associated with tags with label '"Screaming" Hairy l'éléphan%' 
 # into one existing tag with ID 233
