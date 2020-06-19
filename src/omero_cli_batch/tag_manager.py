@@ -1,9 +1,6 @@
-from contextlib import contextmanager, closing
+from contextlib import contextmanager
 import os
-import re
 import sys
-from tempfile import NamedTemporaryFile
-import getpass
 import subprocess
 import threading
 import time
@@ -14,7 +11,6 @@ import omero.cli
 from omero.gateway import BlitzGateway
 from omero import sys as om_sys
 from omero import rtypes
-from omero.rtypes import rlong
 from omero import model
 
 # OMERO_SERVER = 'demo.openmicroscopy.org'
