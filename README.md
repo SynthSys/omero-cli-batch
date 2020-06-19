@@ -55,6 +55,17 @@ $ source /path/to/omero_cli_batch/bin/activate
 $ pip install -r requirements.txt
 ```
 
+If you are using the Docker methods below, you can use the requirements files to install
+the dependencies into the existing Conda or Python virtual environment as follows:
+
+```shell script
+# Conda (Python 2, python-omero 5.4.10)
+$ conda install --file requirements_conda.txt
+
+# Pip (Python 3, omero-py 5.6.1)
+$ pip install -r requirements.txt
+``` 
+
 ## Uploader
 
 ### Python 2 - python-omero 5.4.10
