@@ -94,8 +94,9 @@ parser.add_argument('-r', '--tags-to-remove', dest='tags_to_remove',
 
 parser.add_argument('-d', '--dry-run', action='store_true',
                     dest='dry_run', required=False,
-                    help="Commands the tag manager to report instructed changes rather than actually perform the merge \
-                        and tag deletion process")
+                    help="Instructs the tag manager to report intended changes rather than actually perform the merge "
+                         "and tag deletion process. Non-destructive and allows you to see what will be changed without "
+                         "actually doing so.")
 
 args = parser.parse_args()
 target_tag_id = args.target_tag_id
