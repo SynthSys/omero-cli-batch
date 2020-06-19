@@ -1,0 +1,25 @@
+# =============================================================================
+# DEPRECATION WARNING:
+#
+# The file `requirements.txt` does not influence the package dependencies and
+# will not be automatically created in the next version of PyScaffold (v4.x).
+#
+# Please have look at the docs for better alternatives
+# (`Dependency Management` section).
+# =============================================================================
+#
+# Add your pinned requirements so that they can be easily installed with:
+# pip install -r requirements.txt
+# Remember to also add them in setup.cfg but unpinned.
+backoff==1.10.0
+certifi==2020.4.5.1
+future==0.18.2
+mkl-fft==1.0.15
+mkl-random==1.1.1
+mkl-service==2.3.0
+numpy==1.18.1
+olefile==0.46
+omero-py==5.6.2
+Pillow==7.1.2
+six==1.14.0
+zeroc-ice==3.6.5
