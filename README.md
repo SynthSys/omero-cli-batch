@@ -241,6 +241,27 @@ $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -i 233 \
     -e "\"Screaming\" Hairy l'éléphan%"
 ```
 
+An alternative CLI tool for the tag manager is in 
+`src/omero_cli_batch/tag_manager_prompt_cli.py`. Rather than providing all
+of the arguments in one CLI execution line, the user simply provides their
+username, host and port (if non-default) in the initial line and then the
+program prompts the user for further input. For example:
+
+```shell script
+$ python -m tag_manager.tag_manager_prompt_cli -u root -s 172.17.0.3
+target_tag_id: Omero ID of the destination tag for merging and linking objects to
+> 233
+target_tag_label: Label of the destination tag for merging and linking objects to
+>
+tag_labels_to_remove: List of regex strings for tag labels which are to be merged and removed on the Omero server
+> arch% amoeb%
+tags_to_remove: List of tag IDs which are to be merged and removed on the Omero server
+> 245 253
+dry_run: Instructs the tag manager to report intended changes rather than actually perform the merge and tag deletion process. Non-destructive and allows you to see what will be changed without actually doing so.
+>
+Password:
+``` 
+
 # Note
 
 This project has been set up using PyScaffold 3.2.3. For details and usage
