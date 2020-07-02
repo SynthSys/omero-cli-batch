@@ -197,48 +197,48 @@ $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3
 # merge all datasets/images associated with tags withs labels 'arch%' and 
 # 'amoeb%' into one existing tag labelled 'amoebozoa'
 $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -l amoebozoa \
-  -e arch% amoeb% -o 4064
+  -e arch% amoeb%
 
 # merge all datasets/images associated with tags withs labels 'arch%' and 
 # 'amoeb%' and tags with IDs 245 and 253 into one existing tag labelled 
 # 'amoebozoa'
 $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -l amoebozoa \
-  -e arch% amoeb% -r 245 253 -o 4064
+  -e arch% amoeb% -r 245 253
 
 # merge all datasets/images associated with tags with labels 'cell wall' 
 # into one existing tag with label 'cell'
 $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -l cell \
-  -e "cell wall" -o 4064
+  -e "cell wall"
 
 # Dry Run: merge all datasets/images associated with tags with labels 
 # 'cell wall' into one existing tag with label 'cell'
 $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -l cell \
-  -e "cell wall" -o 4064 -d
+  -e "cell wall" -d
 
 # error: Cannot specify both target tag ID and target tag label; use 
 # one or the other
 $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -i 233 \
-  -l amoebozoa -e arch% amoeb% -o 4064
+  -l amoebozoa -e arch% amoeb%
 
 # merge all datasets/images associated with tags with labels 'arch%' 
 # and 'amoeb%' into one existing tag with ID 233
 $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -i 233 \
-  -e arch% amoeb% -o 4064
+  -e arch% amoeb%
 
 # merge all datasets/images associated with tags with labels 'arch%' 
 # and 'amoeb%' and tags with IDs 245 and 253 into one existing tag with ID 233
 $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -i 233 \
-  -e arch% amoeb% -r 245 253 -o 4064
+  -e arch% amoeb% -r 245 253
 
 # Dry Run: merge all datasets/images associated with tags with labels 'arch%' 
 # and 'amoeb%' and tags with IDs 245 and 253 into one existing tag with ID 233
 $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -i 233 \
-  -e arch% amoeb% -r 245 253 -o 4064 -d
+  -e arch% amoeb% -r 245 253 -d
 
 # merge all datasets/images associated with tags with label 
 # '"Screaming" Hairy l'éléphan%' into one existing tag with ID 233
 $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -i 233 \ 
-    -e "\"Screaming\" Hairy l'éléphan%" -o 4064
+    -e "\"Screaming\" Hairy l'éléphan%"
 ```
 
 # Note
