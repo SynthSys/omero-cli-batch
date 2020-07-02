@@ -8,6 +8,9 @@ __license__ = "mit"
 import sys
 import os
 import argparse
+from argparse_prompt import PromptParser
+import io
+import csv
 import getpass
 
 from tag_manager.tag_manager import TagManager
@@ -49,24 +52,26 @@ $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -i 233 \
 '''
 
 # Instantiate the parser
-parser = argparse.ArgumentParser(description='Tag Manager CLI Application')
+# see https://pypi.org/project/argparse-prompt/
+parser = PromptParser(description='Tag Manager CLI Application')
 
 # set of connection params
 parser.add_argument('-u', '--username', dest='username',
-                    type=str, required=True, metavar='username',
-                    help="specifies the username for connection to the remote OMERO server")
+                    required=True, metavar='username',
+                    help="specifies the username for connection to the remote OMERO server", type=str, prompt=False)
 
 parser.add_argument('-s', '--server', dest='server',
-                    type=str, required=True, metavar='server',
-                    help="specifies the server name of the remote OMERO server to connect")
+                    required=True, metavar='server',
+                    help="specifies the server name of the remote OMERO server to connect", type=str, prompt=False)
 
 parser.add_argument('-o', '--port', dest='port', nargs='?',
-                    const=4064, type=int, required=False, metavar='port',
-                    help="specifies the port on the remote OMERO server to connect (default is 4064)")
+                    const=4064, required=False, metavar='port',
+                    help="specifies the port on the remote OMERO server to connect (default is 4064)", type=int,
+                    prompt=False)
 
 parser.add_argument('-a', '--password', dest='password',
                     action='store_true',
-                    help="hidden password prompt for connection to the remote OMERO server")
+                    help="hidden password prompt for connection to the remote OMERO server", prompt=False)
 
 # mandatory args
 '''
@@ -80,23 +85,24 @@ parser.add_argument('-n', '--dataset-name', dest='dataset_name',
 '''
 
 # optional args
-parser.add_argument('-i', '--target-tag-id', type=int,
+parser.add_argument('-i', '--target-tag-id',
                     dest='target_tag_id', required=False,
-                    help="Omero ID of the destination tag for merging and linking objects to")
+                    help="Omero ID of the destination tag for merging and linking objects to", type=int)
 
-parser.add_argument('-l', '--target-tag-label', type=str,
+parser.add_argument('-l', '--target-tag-label',
                     dest='target_tag_label', required=False,
-                    help="Label of the destination tag for merging and linking objects to")
+                    help="Label of the destination tag for merging and linking objects to", type=str)
 
 parser.add_argument('-e', '--tag-labels-to-remove', dest='tag_labels_to_remove',
-                    nargs='+', type=str, required=False,
-                    help="List of regex strings for tag labels which are to be merged and removed on the Omero server")
+                    nargs='+', required=False,
+                    help="List of regex strings for tag labels which are to be merged and removed on the Omero server",
+                    type=str)
 
 parser.add_argument('-r', '--tags-to-remove', dest='tags_to_remove',
-                    nargs='+', type=int, required=False,
-                    help="List of tag labels which are to be merged and removed on the Omero server")
+                    nargs='+', required=False,
+                    help="List of tag IDs which are to be merged and removed on the Omero server")
 
-parser.add_argument('-d', '--dry-run', action='store_true',
+parser.add_argument('-d', '--dry-run', type=bool,
                     dest='dry_run', required=False,
                     help="Instructs the tag manager to report intended changes rather than actually perform the merge "
                          "and tag deletion process. Non-destructive and allows you to see what will be changed without "
@@ -182,6 +188,40 @@ if target_tag_id is not None or target_tag_label is not None:
 
     if tag_labels_to_remove is not None and str(tag_labels_to_remove).strip() is not '' and \
             len(tag_labels_to_remove) > 0:
+        '''
+        csv.register_dialect('MyDialect', delimiter=' ', doublequote=False, escapechar='\\', quotechar='"',
+                             lineterminator='\n', quoting=csv.QUOTE_MINIMAL)
+        print(csv.list_dialects())
+        print(tag_labels_to_remove)
+
+        delimiter = property(lambda self: object(), lambda self, v: None, lambda self: None)  # default
+
+        doublequote = property(lambda self: object(), lambda self, v: None, lambda self: None)  # default
+
+        escapechar = property(lambda self: object(), lambda self, v: None, lambda self: None)  # default
+
+        lineterminator = property(lambda self: object(), lambda self, v: None, lambda self: None)  # default
+
+        quotechar = property(lambda self: object(), lambda self, v: None, lambda self: None)  # default
+
+        quoting = property(lambda self: object(), lambda self, v: None, lambda self: None)  # default
+
+        skipinitialspace = property(lambda self: object(), lambda self, v: None, lambda self: None)  # default
+
+        strict = property(lambda self: object(), lambda self, v: None, lambda self: None)  # default
+        '''
+
+        '''
+        def utf_8_encoder(unicode_csv_data):
+            for line in unicode_csv_data:
+                yield line.encode('utf-8')
+
+        tags = csv.reader(utf_8_encoder(str(tag_labels_to_remove)), dialect='MyDialect')
+
+        for row in tags:
+            # decode UTF-8 back to Unicode, cell by cell:
+            print(str(cell, 'utf-8') for cell in row)
+        '''
         # pre-process the list of tag labels to be merged
         tag_annos = tag_manager.get_tag_annos_for_labels(tag_labels_to_remove)
 
