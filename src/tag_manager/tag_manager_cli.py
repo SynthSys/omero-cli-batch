@@ -17,6 +17,10 @@ from omero_cli_batch.tag_manager import TagManager
 # Examples of usage
 $ cd src
 
+## automatically remove all identical duplicate tags and merge all associated datasets/images into the first 'original'
+## tag; no extra parameters required beyond username and server
+$ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3
+
 ## merge all datasets/images associated with tags withs labels 'arch%' and 'amoeb%' into one existing tag labelled 
 ## 'amoebozoa'
 $ python -m tag_manager.tag_manager_cli -u root -s 172.17.0.3 -l amoebozoa -e arch% amoeb% -o 4064
@@ -49,11 +53,11 @@ parser = argparse.ArgumentParser(description='Tag Manager CLI Application')
 
 # set of connection params
 parser.add_argument('-u', '--username', dest='username',
-                    type=str, required=False, metavar='username',
+                    type=str, required=True, metavar='username',
                     help="specifies the username for connection to the remote OMERO server")
 
 parser.add_argument('-s', '--server', dest='server',
-                    type=str, required=False, metavar='server',
+                    type=str, required=True, metavar='server',
                     help="specifies the server name of the remote OMERO server to connect")
 
 parser.add_argument('-o', '--port', dest='port', nargs='?',
