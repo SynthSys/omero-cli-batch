@@ -248,6 +248,7 @@ username, host and port (if non-default) in the initial line and then the
 program prompts the user for further input. For example:
 
 ```shell script
+$ cd src
 $ python -m tag_manager.tag_manager_prompt_cli -u root -s 172.17.0.3
 target_tag_id: Omero ID of the destination tag for merging and linking objects to
 > 233
