@@ -1,5 +1,7 @@
+******************************************************************************
 **Updated 12/07/21: This repository is deprecated and no longer updated. The
 OMERO CLI Batch has been merged with the OMERO Toolkit at https://github.com/SynthSys/omero-toolkit**
+******************************************************************************
 
 # OMERO CLI Batch
 
