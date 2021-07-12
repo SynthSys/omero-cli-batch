@@ -1,3 +1,6 @@
+** This repository is deprecated and the OMERO CLI Batch has been merged with the
+OMERO Toolkit at https://github.com/SynthSys/omero-toolkit **
+
 # OMERO CLI Batch
 
 This Python script uploads data to an OMERO server in batches
